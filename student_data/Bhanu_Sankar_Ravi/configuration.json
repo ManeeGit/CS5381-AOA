@@ -1,0 +1,13 @@
+{
+  "student_name": "Bhanu Sankar Ravi",
+  "config_id": 1,
+  "config_name": "Fast Exploration (High Mutation)",
+  "description": "High mutation rate for aggressive exploration with smaller population",
+  "parameters": {
+    "max_generations": 8,
+    "population_size": 6,
+    "top_k": 2,
+    "mutation_rate": 0.6
+  },
+  "timestamp": "2026-04-12T14:34:16.788878"
+}

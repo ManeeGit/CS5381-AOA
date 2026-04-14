@@ -1,0 +1,77 @@
+# Example Configuration File
+# Copy this to config.yaml and customize as needed
+
+project:
+  name: Evolve-Pacman
+  seed: 42                      # Random seed for reproducibility
+  max_generations: 10           # Number of evolution cycles
+  population_size: 8            # Number of candidates per generation
+  top_k: 3                      # Number of elite candidates to preserve
+  mutation_rate: 0.35           # Probability of applying mutation (0.0-1.0)
+  cache_dir: ./data/cache       # Directory for fitness cache storage
+
+# Language Model Configuration
+# PDF REQUIREMENT: "Mandatory: call a small LLM API"
+# For compliance, use a remote provider (openai or gemini)
+llm:
+  provider: openai              # Options: "openai", "gemini", "local"
+  model_name: gpt-3.5-turbo     # For OpenAI: "gpt-3.5-turbo" or "gpt-4"; For Gemini: "gemini-pro"
+  # Set environment variable before running:
+  # export OPENAI_API_KEY="your-openai-api-key"
+  # or
+  # export LLM_API_KEY="your-api-key"
+  #
+  # Note: Local model (llama.cpp) is also supported but remote APIs are recommended for PDF compliance
+
+# Pacman Agent Optimization
+pacman:
+  enabled: true
+  # Path to UC Berkeley Pacman project root (must contain pacman.py, game.py)
+  root_path: ./third_party/pacman
+  # Path to the agent file to mutate/evolve
+  base_agent_path: ./third_party/pacman/myAgents.py
+  # Command template for running Pacman evaluation
+  # Variables: {root}, {agent}, {layout}
+  command: "python3 {root}/pacman.py -p {agent} -l {layout} -n 3 -q"
+  # Pacman layout to use for evaluation
+  layout: mediumClassic         # Options: smallClassic, mediumClassic, trickyClassic, etc.
+
+# Matrix Multiplication Optimization
+matrix:
+  enabled: true
+  size: 3                       # Matrix dimensions (NxN)
+  samples: 5                    # Number of test cases per evaluation
+  max_ops: 60                   # Maximum operation count for scoring
+
+# User Interface
+ui:
+  mode: streamlit               # Primary UI mode
+
+# Advanced Settings (Optional)
+
+# Logging
+logging:
+  level: INFO                   # Options: DEBUG, INFO, WARNING, ERROR
+  file: ./logs/evolve.log       # Log file path
+
+# Performance
+performance:
+  parallel_evaluation: false    # Enable parallel fitness evaluation (experimental)
+  max_workers: 4                # Number of parallel workers
+
+# Experiment Presets
+presets:
+  quick_test:
+    max_generations: 3
+    population_size: 4
+    top_k: 2
+  
+  standard:
+    max_generations: 10
+    population_size: 8
+    top_k: 3
+  
+  intensive:
+    max_generations: 25
+    population_size: 20
+    top_k: 5

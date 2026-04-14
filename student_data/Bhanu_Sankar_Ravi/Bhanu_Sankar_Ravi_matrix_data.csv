@@ -1,0 +1,18 @@
+mode,generation,fitness,metric_correct,metric_ops,student_name,config_id,config_name,runtime_seconds,timestamp
+no_evolution,0,0.99,1.0,2.0,Bhanu Sankar Ravi,1,Fast Exploration (High Mutation),0.023051023483276367,2026-04-12T13:29:36.172786
+random_mutation,0,0.99,1.0,2.0,Bhanu Sankar Ravi,1,Fast Exploration (High Mutation),0.023051023483276367,2026-04-12T13:29:36.172786
+random_mutation,1,0.99,1.0,2.0,Bhanu Sankar Ravi,1,Fast Exploration (High Mutation),0.023051023483276367,2026-04-12T13:29:36.172786
+random_mutation,2,0.99,1.0,2.0,Bhanu Sankar Ravi,1,Fast Exploration (High Mutation),0.023051023483276367,2026-04-12T13:29:36.172786
+random_mutation,3,0.99,1.0,2.0,Bhanu Sankar Ravi,1,Fast Exploration (High Mutation),0.023051023483276367,2026-04-12T13:29:36.172786
+random_mutation,4,0.99,1.0,2.0,Bhanu Sankar Ravi,1,Fast Exploration (High Mutation),0.023051023483276367,2026-04-12T13:29:36.172786
+random_mutation,5,0.99,1.0,2.0,Bhanu Sankar Ravi,1,Fast Exploration (High Mutation),0.023051023483276367,2026-04-12T13:29:36.172786
+random_mutation,6,0.99,1.0,2.0,Bhanu Sankar Ravi,1,Fast Exploration (High Mutation),0.023051023483276367,2026-04-12T13:29:36.172786
+random_mutation,7,0.99,1.0,2.0,Bhanu Sankar Ravi,1,Fast Exploration (High Mutation),0.023051023483276367,2026-04-12T13:29:36.172786
+llm_guided,0,0.99,1.0,2.0,Bhanu Sankar Ravi,1,Fast Exploration (High Mutation),0.023051023483276367,2026-04-12T13:29:36.172786
+llm_guided,1,0.99,1.0,2.0,Bhanu Sankar Ravi,1,Fast Exploration (High Mutation),0.023051023483276367,2026-04-12T13:29:36.172786
+llm_guided,2,0.99,1.0,2.0,Bhanu Sankar Ravi,1,Fast Exploration (High Mutation),0.023051023483276367,2026-04-12T13:29:36.172786
+llm_guided,3,0.99,1.0,2.0,Bhanu Sankar Ravi,1,Fast Exploration (High Mutation),0.023051023483276367,2026-04-12T13:29:36.172786
+llm_guided,4,0.99,1.0,2.0,Bhanu Sankar Ravi,1,Fast Exploration (High Mutation),0.023051023483276367,2026-04-12T13:29:36.172786
+llm_guided,5,0.99,1.0,2.0,Bhanu Sankar Ravi,1,Fast Exploration (High Mutation),0.023051023483276367,2026-04-12T13:29:36.172786
+llm_guided,6,0.99,1.0,2.0,Bhanu Sankar Ravi,1,Fast Exploration (High Mutation),0.023051023483276367,2026-04-12T13:29:36.172786
+llm_guided,7,0.99,1.0,2.0,Bhanu Sankar Ravi,1,Fast Exploration (High Mutation),0.023051023483276367,2026-04-12T13:29:36.172786

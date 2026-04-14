@@ -1,0 +1,37 @@
+================================================================================
+STUDENT DATA ANALYSIS REPORT
+Student: Bhanu Sankar Ravi
+Configuration: Fast Exploration (High Mutation)
+Generated: 2026-04-12 14:34:47
+================================================================================
+
+PARAMETER CONFIGURATION
+--------------------------------------------------------------------------------
+Description: High mutation rate for aggressive exploration with smaller population
+  • Max Generations: 8
+  • Population Size: 6
+  • Top-K Selection: 2
+  • Mutation Rate: 0.6
+
+
+PACMAN EXPERIMENT RESULTS
+--------------------------------------------------------------------------------
+Runtime: 29.39 seconds
+Total Generations: 8
+Total Evaluations: 17
+
+BEST FITNESS BY MODE:
+  • no_evolution        : 86.3842 (achieved at generation 0)
+  • random_mutation     : 80.2126 (achieved at generation 0)
+  • llm_guided          : 80.2126 (achieved at generation 0)
+
+IMPROVEMENT ANALYSIS:
+  • random_mutation     : +0.0000 (+0.00%)
+  • llm_guided          : +0.0000 (+0.00%)
+
+STEPS PER GENERATION:
+  • llm_guided          : 8 generations, ~3.67s per generation
+  • no_evolution        : 1 generations, ~29.39s per generation
+  • random_mutation     : 8 generations, ~3.67s per generation
+
+================================================================================

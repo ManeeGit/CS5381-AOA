@@ -1,0 +1,37 @@
+================================================================================
+STUDENT DATA ANALYSIS REPORT
+Student: Demo Student
+Configuration: Rapid Evolution (Few Generations)
+Generated: 2026-02-13 10:59:34
+================================================================================
+
+PARAMETER CONFIGURATION
+--------------------------------------------------------------------------------
+Description: Quick evolution with moderate parameters
+  • Max Generations: 5
+  • Population Size: 10
+  • Top-K Selection: 3
+  • Mutation Rate: 0.5
+
+
+MATRIX EXPERIMENT RESULTS
+--------------------------------------------------------------------------------
+Runtime: 0.01 seconds
+Total Generations: 5
+Total Evaluations: 11
+
+BEST FITNESS BY MODE:
+  • no_evolution        : 0.9900 (achieved at generation 0)
+  • random_mutation     : 0.9900 (achieved at generation 0)
+  • llm_guided          : 0.9900 (achieved at generation 0)
+
+IMPROVEMENT ANALYSIS:
+  • random_mutation     : +0.0000 (+0.00%)
+  • llm_guided          : +0.0000 (+0.00%)
+
+STEPS PER GENERATION:
+  • llm_guided          : 5 generations, ~0.00s per generation
+  • no_evolution        : 1 generations, ~0.01s per generation
+  • random_mutation     : 5 generations, ~0.00s per generation
+
+================================================================================

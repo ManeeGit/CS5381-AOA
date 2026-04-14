@@ -1,0 +1,12 @@
+mode,generation,fitness,metric_correct,metric_ops,student_name,config_id,config_name,runtime_seconds,timestamp
+no_evolution,0,0.99,1.0,2.0,Demo Student,5,Rapid Evolution (Few Generations),0.005661964416503906,2026-02-13T10:59:34.199831
+random_mutation,0,0.99,1.0,2.0,Demo Student,5,Rapid Evolution (Few Generations),0.005661964416503906,2026-02-13T10:59:34.199831
+random_mutation,1,0.99,1.0,2.0,Demo Student,5,Rapid Evolution (Few Generations),0.005661964416503906,2026-02-13T10:59:34.199831
+random_mutation,2,0.99,1.0,2.0,Demo Student,5,Rapid Evolution (Few Generations),0.005661964416503906,2026-02-13T10:59:34.199831
+random_mutation,3,0.99,1.0,2.0,Demo Student,5,Rapid Evolution (Few Generations),0.005661964416503906,2026-02-13T10:59:34.199831
+random_mutation,4,0.99,1.0,2.0,Demo Student,5,Rapid Evolution (Few Generations),0.005661964416503906,2026-02-13T10:59:34.199831
+llm_guided,0,0.99,1.0,2.0,Demo Student,5,Rapid Evolution (Few Generations),0.005661964416503906,2026-02-13T10:59:34.199831
+llm_guided,1,0.99,1.0,2.0,Demo Student,5,Rapid Evolution (Few Generations),0.005661964416503906,2026-02-13T10:59:34.199831
+llm_guided,2,0.99,1.0,2.0,Demo Student,5,Rapid Evolution (Few Generations),0.005661964416503906,2026-02-13T10:59:34.199831
+llm_guided,3,0.99,1.0,2.0,Demo Student,5,Rapid Evolution (Few Generations),0.005661964416503906,2026-02-13T10:59:34.199831
+llm_guided,4,0.99,1.0,2.0,Demo Student,5,Rapid Evolution (Few Generations),0.005661964416503906,2026-02-13T10:59:34.199831

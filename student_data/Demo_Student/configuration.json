@@ -1,0 +1,13 @@
+{
+  "student_name": "Demo Student",
+  "config_id": 5,
+  "config_name": "Rapid Evolution (Few Generations)",
+  "description": "Quick evolution with moderate parameters",
+  "parameters": {
+    "max_generations": 5,
+    "population_size": 10,
+    "top_k": 3,
+    "mutation_rate": 0.5
+  },
+  "timestamp": "2026-02-13T10:59:34.191401"
+}

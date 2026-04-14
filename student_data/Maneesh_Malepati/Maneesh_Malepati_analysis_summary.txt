@@ -1,0 +1,37 @@
+================================================================================
+STUDENT DATA ANALYSIS REPORT
+Student: Maneesh Malepati
+Configuration: Balanced Standard
+Generated: 2026-04-12 14:41:19
+================================================================================
+
+PARAMETER CONFIGURATION
+--------------------------------------------------------------------------------
+Description: Default balanced configuration for steady evolution
+  • Max Generations: 10
+  • Population Size: 8
+  • Top-K Selection: 3
+  • Mutation Rate: 0.35
+
+
+PACMAN EXPERIMENT RESULTS
+--------------------------------------------------------------------------------
+Runtime: 274.44 seconds
+Total Generations: 10
+Total Evaluations: 21
+
+BEST FITNESS BY MODE:
+  • no_evolution        : 65.3888 (achieved at generation 0)
+  • random_mutation     : 65.3888 (achieved at generation 0)
+  • llm_guided          : 65.3888 (achieved at generation 0)
+
+IMPROVEMENT ANALYSIS:
+  • random_mutation     : +0.0000 (+0.00%)
+  • llm_guided          : +0.0000 (+0.00%)
+
+STEPS PER GENERATION:
+  • llm_guided          : 10 generations, ~27.44s per generation
+  • no_evolution        : 1 generations, ~274.44s per generation
+  • random_mutation     : 10 generations, ~27.44s per generation
+
+================================================================================

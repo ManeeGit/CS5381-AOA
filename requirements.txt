@@ -1,0 +1,20 @@
+# Core dependencies
+streamlit>=1.30.0
+pydantic>=2.0.0
+numpy>=1.26.0
+pandas>=2.0.0
+matplotlib>=3.8.0
+seaborn>=0.13.0
+pyyaml>=6.0.0
+requests>=2.31.0       # Required for Ollama local LLM REST API
+
+# API / web layer
+fastapi>=0.110.0
+uvicorn>=0.27.0
+
+# Optional remote LLM providers (uncomment as needed)
+# openai>=1.0.0          # OpenAI GPT-3.5/GPT-4
+# google-generativeai    # Google Gemini
+
+# Optional local LLM via llama.cpp binary
+# llama-cpp-python       # Only needed for llama.cpp provider; Ollama needs no Python package

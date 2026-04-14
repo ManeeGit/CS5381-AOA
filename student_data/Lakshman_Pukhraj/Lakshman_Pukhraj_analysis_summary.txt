@@ -1,0 +1,37 @@
+================================================================================
+STUDENT DATA ANALYSIS REPORT
+Student: Lakshman Pukhraj
+Configuration: Conservative (Low Mutation)
+Generated: 2026-04-12 14:41:26
+================================================================================
+
+PARAMETER CONFIGURATION
+--------------------------------------------------------------------------------
+Description: Low mutation rate with larger population for careful refinement
+  • Max Generations: 12
+  • Population Size: 10
+  • Top-K Selection: 4
+  • Mutation Rate: 0.2
+
+
+PACMAN EXPERIMENT RESULTS
+--------------------------------------------------------------------------------
+Runtime: 0.01 seconds
+Total Generations: 12
+Total Evaluations: 25
+
+BEST FITNESS BY MODE:
+  • no_evolution        : 55.2558 (achieved at generation 0)
+  • random_mutation     : 55.2558 (achieved at generation 0)
+  • llm_guided          : 55.2558 (achieved at generation 0)
+
+IMPROVEMENT ANALYSIS:
+  • random_mutation     : +0.0000 (+0.00%)
+  • llm_guided          : +0.0000 (+0.00%)
+
+STEPS PER GENERATION:
+  • llm_guided          : 12 generations, ~0.00s per generation
+  • no_evolution        : 1 generations, ~0.01s per generation
+  • random_mutation     : 12 generations, ~0.00s per generation
+
+================================================================================

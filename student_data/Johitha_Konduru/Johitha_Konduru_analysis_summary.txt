@@ -1,0 +1,37 @@
+================================================================================
+STUDENT DATA ANALYSIS REPORT
+Student: Johitha Konduru
+Configuration: Elite-Focused
+Generated: 2026-04-12 14:41:28
+================================================================================
+
+PARAMETER CONFIGURATION
+--------------------------------------------------------------------------------
+Description: Large elite selection to preserve good solutions
+  • Max Generations: 10
+  • Population Size: 12
+  • Top-K Selection: 6
+  • Mutation Rate: 0.3
+
+
+PACMAN EXPERIMENT RESULTS
+--------------------------------------------------------------------------------
+Runtime: 0.02 seconds
+Total Generations: 10
+Total Evaluations: 21
+
+BEST FITNESS BY MODE:
+  • no_evolution        : 66.3121 (achieved at generation 0)
+  • random_mutation     : 64.8635 (achieved at generation 0)
+  • llm_guided          : 64.8635 (achieved at generation 0)
+
+IMPROVEMENT ANALYSIS:
+  • random_mutation     : +0.0000 (+0.00%)
+  • llm_guided          : +0.0000 (+0.00%)
+
+STEPS PER GENERATION:
+  • llm_guided          : 10 generations, ~0.00s per generation
+  • no_evolution        : 1 generations, ~0.02s per generation
+  • random_mutation     : 10 generations, ~0.00s per generation
+
+================================================================================
