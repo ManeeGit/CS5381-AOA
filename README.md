@@ -640,6 +640,45 @@ All results are saved to the `outputs/` directory:
 - **CSV Files**: Detailed tabular data for analysis
 - **Cache**: `data/cache/fitness_cache.jsonl` stores evaluated candidates
 
+##  Known Issues & Solutions
+
+| # | Issue | Solution |
+|---|-------|----------|
+| 1 | **Ollama not reachable** — `[OllamaLLM] Ollama server not reachable at http://localhost:11434` | Run `ollama serve` in a separate terminal before starting the app. LLM-guided mutations fall back to random mutations automatically if Ollama is unavailable. |
+| 2 | **Streamlit `use_column_width` deprecation warnings** | Harmless warnings from Streamlit. Upgrade Streamlit to latest: `pip install --upgrade streamlit`. |
+| 3 | **Pacman evaluation fails / returns 0 score** | Ensure the UC Berkeley Pacman files exist in `third_party/pacman/`. The system auto-falls back to simulated scores if not found. |
+| 4 | **`Module not found` on startup** | Activate the virtual environment first: `source .venv/bin/activate`, then `pip install -r requirements.txt`. |
+| 5 | **LLM-guided mode produces no improvement** | Set `OPENAI_API_KEY` or `LLM_API_KEY` environment variable, or configure Ollama with a pulled model (`ollama pull qwen2.5-coder:1.5b`). |
+| 6 | **Port 8501 already in use** | Run `streamlit run app.py --server.port 8502` or kill the existing process: `lsof -ti:8501 | xargs kill`. |
+| 7 | **Low fitness scores after many generations** | Increase `max_generations` (try 20–30) and `population_size` (try 12–15). Also try the `Optimal` preset in the UI. |
+| 8 | **SSL/urllib3 warning on Python 3.9 (macOS)** | Upgrade: `pip install --upgrade urllib3`. Or use Python 3.11+. |
+
+---
+
+##  Suggestions & Feedback
+
+### Suggestions for Improvement
+
+1. **Expand LLM Support**: Add support for Anthropic Claude and Mistral AI models to give users more LLM provider options without requiring API keys (via free-tier endpoints).
+
+2. **Distributed Evolution**: Parallelize fitness evaluations using Python `multiprocessing` or `concurrent.futures` to reduce wall-clock time per generation, especially for large population sizes.
+
+3. **Interactive Code Diff View**: Show a side-by-side diff of the initial code vs. the best evolved code in the UI so users can visually understand what mutations improved fitness.
+
+4. **More Benchmark Problems**: Add additional optimization problems (e.g., sorting algorithm optimization, graph traversal) to make the framework more general-purpose beyond Pacman and matrix multiplication.
+
+5. **Export to Jupyter Notebook**: Allow users to download a Jupyter notebook version of the evolution run with all charts embedded, making it easier to share results in academic settings.
+
+6. **Adaptive Top-K**: Dynamically adjust `top_k` based on population diversity metrics to avoid premature convergence.
+
+### Feedback
+
+- **What worked well**: The modular architecture (engine / evaluators / LLM separated cleanly) made it straightforward to swap out fitness functions and LLM providers without touching core logic.
+- **What was challenging**: Getting reproducible Pacman scores was difficult due to randomness in the game environment; adding a fixed random seed to the Pacman runner resolved most inconsistencies.
+- **Course connection**: The evolutionary selection loop directly maps to concepts from the course (greedy selection, local search, and approximation). Framing it as "code as a genome" made the algorithm intuitive to implement and explain.
+
+---
+
 ##  Contributing
 
 This is an academic research project. To extend:
