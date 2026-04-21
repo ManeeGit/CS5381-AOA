@@ -1,13 +1,23 @@
 from __future__ import annotations
 
 import random
+import time
 from dataclasses import dataclass
 from typing import List
 
 from ..cache.cache import FitnessCache
 from ..llm.base import LLMClient
+from ..llm.ollama_client import OllamaLLM
 from .mutations import mutate, mutate_with_meta
 from .types import Candidate, GenerationResult
+
+
+def _sanitize(code: str) -> str:
+    """Deduplicate class definitions in mutated code."""
+    try:
+        return OllamaLLM._sanitize_code(code)
+    except Exception:
+        return code
 
 
 @dataclass
@@ -36,7 +46,7 @@ class Evolver:
         self.prompt = prompt
 
     def run(self, base_code: str, mode: str) -> List[GenerationResult]:
-        population = self._init_population(base_code)
+        population = self._init_population(base_code, mode=mode)
         history: List[GenerationResult] = []
         
         # Adaptive mutation rate (starts high, decreases over time)
@@ -44,7 +54,13 @@ class Evolver:
         best_fitness_ever = float('-inf')
         stagnation_count = 0
 
+        print(f"\n{'='*60}")
+        print(f"[Evolver] Mode: {mode.upper()} | Generations: {self.cfg.generations} | Population: {self.cfg.population_size}")
+        print(f"{'='*60}")
+        run_start = time.time()
+
         for gen in range(self.cfg.generations):
+            gen_start = time.time()
             # Evaluate all candidates
             for cand in population:
                 self._evaluate(cand)
@@ -52,6 +68,18 @@ class Evolver:
             population.sort(key=lambda c: c.fitness or 0.0, reverse=True)
             best = population[0]
             history.append(GenerationResult(gen, population[:], best))
+
+            gen_elapsed = time.time() - gen_start
+            best_fitness = best.fitness or 0.0
+            metrics_str = " | ".join(
+                f"{k}: {v:.2f}" for k, v in (best.metrics or {}).items()
+            )
+            print(
+                f"  Gen {gen+1:>3}/{self.cfg.generations}"
+                f" | Best Fitness: {best_fitness:>8.4f}"
+                f" | {metrics_str}"
+                f" | Time: {gen_elapsed:.2f}s"
+            )
             
             # Track improvement for adaptive behavior
             if best.fitness and best.fitness > best_fitness_ever:
@@ -85,6 +113,7 @@ class Evolver:
                 else:
                     if random.random() < adaptive_mutation_rate:
                         new_code, mut_meta = mutate_with_meta(parent.code, self.templates)
+                        new_code = _sanitize(new_code)
                         meta = {**mut_meta, "parent_fitness": str(parent.fitness)}
                     else:
                         new_code = parent.code
@@ -97,13 +126,31 @@ class Evolver:
 
             population = next_pop
 
+        total_elapsed = time.time() - run_start
+        final_best = history[-1].best
+        print(f"\n[Evolver] Mode '{mode}' complete | Total Time: {total_elapsed:.2f}s | Best Fitness: {final_best.fitness or 0.0:.4f}")
+        print(f"{'='*60}\n")
         return history
 
-    def _init_population(self, base_code: str) -> List[Candidate]:
-        population = [Candidate(code=base_code, meta={"op": "base", "op_description": "Original base code (seed)"})]
+    def _init_population(self, base_code: str, mode: str = "") -> List[Candidate]:
+        base = Candidate(code=base_code, meta={"op": "base", "op_description": "Original base code (seed)"})
+        # no_evolution: baseline uses ONLY the original code — no mutations in initial pop
+        if mode == "no_evolution":
+            return [base]
+        population = [base]
+        import ast as _ast
+        attempts = 0
         while len(population) < self.cfg.population_size:
             new_code, meta = mutate_with_meta(base_code, self.templates)
-            population.append(Candidate(code=new_code, meta=meta))
+            new_code = _sanitize(new_code)
+            # Reject syntactically invalid mutations (keep trying, but cap attempts)
+            try:
+                _ast.parse(new_code)
+                population.append(Candidate(code=new_code, meta=meta))
+            except SyntaxError:
+                attempts += 1
+                if attempts > 50:  # safety valve: accept even invalid after 50 fails
+                    population.append(Candidate(code=base_code, meta={"op": "clone", "op_description": "Clone (mutation rejected)"}))
         return population
 
     def _evaluate(self, cand: Candidate) -> None:

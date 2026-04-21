@@ -77,7 +77,10 @@ class OllamaLLM(LLMClient):
             resp.raise_for_status()
             data = resp.json()
             content: str = data["message"]["content"].strip()
-            return self._extract_code(content) or code
+            cleaned = self._extract_code(content)
+            if cleaned:
+                cleaned = self._sanitize_code(cleaned)
+            return cleaned or code
         except Exception as exc:
             print(f"[OllamaLLM] Error calling Ollama: {exc}")
             return self._fallback_improve(code)
@@ -87,10 +90,7 @@ class OllamaLLM(LLMClient):
     # ------------------------------------------------------------------
 
     def _is_available(self) -> bool:
-        """Lazily test whether Ollama is reachable and the model exists."""
-        if self._available is not None:
-            return self._available
-
+        """Test whether Ollama is reachable and the model exists. Always re-checks."""
         # 1. Ping the server
         try:
             requests.get(f"{self.host}/api/tags", timeout=5).raise_for_status()
@@ -126,12 +126,57 @@ class OllamaLLM(LLMClient):
 
     @staticmethod
     def _extract_code(text: str) -> str:
-        """Strip markdown code fences if present."""
-        # Match ```python ... ``` or ``` ... ```
-        fence = re.search(r"```(?:python)?\s*\n?(.*?)```", text, re.DOTALL)
-        if fence:
-            return fence.group(1).strip()
+        """Strip markdown code fences. Returns the longest code block found."""
+        # Find ALL fenced blocks (```python ... ``` or ``` ... ```)
+        blocks = re.findall(r"```(?:python)?\s*\n?(.*?)```", text, re.DOTALL)
+        if blocks:
+            # Prefer the last non-trivial block (LLMs often put the best answer last)
+            blocks = [b.strip() for b in blocks if b.strip()]
+            # Return the longest block as it's most likely the complete solution
+            return max(blocks, key=len)
+        # No fences — find where real Python starts (first import/from/class/def)
+        match = re.search(r"^(from |import |class |def )", text, re.MULTILINE)
+        if match:
+            return text[match.start():].strip()
         return text.strip()
+
+    @staticmethod
+    def _sanitize_code(code: str) -> str:
+        """Remove duplicate class definitions, keeping the last (most evolved) one."""
+        # Split on class boundaries
+        class_pattern = re.compile(r"(?=^class )", re.MULTILINE)
+        parts = class_pattern.split(code)
+
+        if len(parts) <= 1:
+            # No class boundary found; deduplicate by unique consecutive lines
+            return code
+
+        # Collect imports (everything before the first class)
+        preamble = parts[0]
+        # Deduplicate import lines in preamble
+        seen_imports: set = set()
+        clean_imports = []
+        for line in preamble.splitlines():
+            stripped = line.strip()
+            if stripped.startswith(("import ", "from ")):
+                if stripped not in seen_imports:
+                    seen_imports.add(stripped)
+                    clean_imports.append(line)
+            elif stripped:  # keep non-empty non-import preamble lines
+                clean_imports.append(line)
+        preamble = "\n".join(clean_imports)
+
+        # Collect class blocks, keep only the LAST definition of each class name
+        class_blocks: dict = {}
+        for part in parts[1:]:  # skip preamble
+            # Extract class name
+            name_match = re.match(r"class (\w+)", part)
+            class_name = name_match.group(1) if name_match else "__unknown__"
+            class_blocks[class_name] = part  # overwrite — keep last definition
+
+        result_parts = [preamble] if preamble.strip() else []
+        result_parts.extend(class_blocks.values())
+        return "\n\n".join(result_parts).strip()
 
     @staticmethod
     def _fallback_improve(code: str) -> str:

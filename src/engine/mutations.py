@@ -44,17 +44,27 @@ def swap_two_lines(code: str) -> Tuple[str, str]:
 
 
 def replace_fragment(code: str, templates: List[str]) -> Tuple[str, str]:
-    """Replace a random code segment with a fragment from the template library."""
+    """Replace a small random code segment with a short snippet from a template."""
     if not templates:
         return code, "Fragment replacement skipped (no templates)"
-    template = random.choice(templates)
+    template_lines = random.choice(templates).splitlines()
+    # Extract a small snippet (3-6 lines) from a random position in the template,
+    # skipping import/class header lines to avoid duplicating the class skeleton.
+    body_lines = [l for l in template_lines if not l.startswith(("class ", "import ", "from "))]
+    if not body_lines:
+        return code, "Fragment replacement skipped (no body lines in template)"
+    snippet_len = min(len(body_lines), random.randint(3, 6))
+    snip_start = random.randrange(0, max(1, len(body_lines) - snippet_len + 1))
+    snippet = body_lines[snip_start: snip_start + snippet_len]
+
     lines = code.splitlines()
-    if not lines:
-        return template, "Replaced entire code with template"
-    start = random.randrange(0, len(lines))
-    end = min(len(lines), start + max(1, len(template.splitlines()) // 2))
-    new_lines = lines[:start] + template.splitlines() + lines[end:]
-    return "\n".join(new_lines), f"Replaced lines {start + 1}–{end} with template fragment"
+    if len(lines) < 4:
+        return code, "Fragment replacement skipped (code too short)"
+    # Only replace within the body (avoid first 2 and last 2 lines to preserve structure)
+    insert_at = random.randrange(2, max(3, len(lines) - 2))
+    replace_end = min(len(lines) - 2, insert_at + snippet_len)
+    new_lines = lines[:insert_at] + snippet + lines[replace_end:]
+    return "\n".join(new_lines), f"Replaced lines {insert_at + 1}–{replace_end} with {snippet_len}-line template snippet"
 
 
 # -------------------------------------------------------------------------

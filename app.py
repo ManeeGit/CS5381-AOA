@@ -35,11 +35,15 @@ st.markdown("""
         border-left: 4px solid #1f77b4;
     }
     .success-box {
-        background-color: #d4edda;
-        border: 1px solid #c3e6cb;
+        background-color: #000000;
+        border: 1px solid #00ff88;
         border-radius: 5px;
         padding: 1rem;
         margin: 1rem 0;
+        color: #ffffff;
+    }
+    .success-box h4, .success-box p, .success-box strong {
+        color: #ffffff !important;
     }
     .warning-box {
         background-color: #fff3cd;
@@ -90,20 +94,63 @@ with st.sidebar:
     """)
     
     st.markdown("---")
+    st.markdown("###  LLM Configuration")
+
+    _llm_provider = st.selectbox(
+        "LLM Provider",
+        options=["ollama", "openai", "gemini", "local"],
+        index=["ollama", "openai", "gemini", "local"].index(
+            cfg.get("llm", "provider", default="ollama")
+        ),
+        help="ollama = local model via Ollama (recommended). openai/gemini = remote API.",
+    )
+
+    _default_models = {
+        "ollama": cfg.get("llm", "model_name", default="qwen2.5-coder:1.5b"),
+        "openai": "gpt-3.5-turbo",
+        "gemini": "gemini-1.5-flash",
+        "local": "llama-cpp",
+    }
+    _llm_model = st.text_input(
+        "Model Name",
+        value=_default_models.get(_llm_provider, cfg.get("llm", "model_name", default="qwen2.5-coder:1.5b")),
+        help="For Ollama: name of a pulled model (e.g. qwen2.5-coder:1.5b). For remote: API model ID.",
+    )
+
+    if _llm_provider == "ollama":
+        _ollama_host = st.text_input(
+            "Ollama Host",
+            value=cfg.get("llm", "ollama_host", default="http://localhost:11434"),
+            help="URL of the running Ollama server.",
+        )
+    else:
+        _ollama_host = cfg.get("llm", "ollama_host", default="http://localhost:11434")
+
+    # Live status check
+    import requests as _req
+    if _llm_provider == "ollama":
+        try:
+            _tags = _req.get(f"{_ollama_host}/api/tags", timeout=3).json()
+            _pulled = [m["name"] for m in _tags.get("models", [])]
+            if _llm_model in _pulled:
+                _llm_status = f" Running · `{_llm_model}`"
+            elif _pulled:
+                _llm_status = f" Server up · model `{_llm_model}` not found (available: {', '.join(_pulled[:3])})"
+            else:
+                _llm_status = " Server up but no models pulled"
+        except Exception:
+            _llm_status = " Ollama not reachable — start with `ollama serve`"
+    else:
+        import os as _os
+        _has_key = bool(_os.getenv("LLM_API_KEY") or _os.getenv("OPENAI_API_KEY"))
+        _llm_status = " API key set" if _has_key else " No API key (set LLM_API_KEY env var)"
+
+    st.markdown(f"**Status:** {_llm_status}")
+
+    st.markdown("---")
     st.markdown("###  System Status")
-    
-    # Check LLM availability
-    try:
-        from src.llm.remote import RemoteLLM
-        import os
-        has_api_key = bool(os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY"))
-        llm_status = " Available" if has_api_key else " No API Key"
-    except:
-        llm_status = " Not Configured"
-    
-    st.markdown(f"**LLM API:** {llm_status}")
     st.markdown(f"**Cache:**  Enabled")
-    
+
     # Check Pacman availability
     pacman_path = _HERE / "third_party/pacman/pacman.py"
     pacman_status = " Available" if pacman_path.exists() else " Simulation Mode"
@@ -211,7 +258,41 @@ with col1:
             mutation_rate = 0.35
     
     st.markdown("---")
-    run_btn = st.button(" Run Evolution", type="primary", use_container_width=True)
+    run_btn = st.button(" Run Evolution", type="primary", use_container_width=True, icon=None)
+    baseline_btn = st.button(" Run Baseline Only", help="Runs no_evolution mode and saves baseline CSV for competition comparison", use_container_width=True, icon=None)
+
+if baseline_btn:
+    cfg.raw["project"]["max_generations"] = 1
+    cfg.raw["project"]["population_size"] = population
+    cfg.raw["project"]["top_k"] = top_k
+    cfg.raw["project"]["mutation_rate"] = 0.0
+    with st.spinner("Running baseline (no evolution)..."):
+        import time as _time
+        from datetime import datetime as _dt
+        _t0 = _time.time()
+        try:
+            from src.engine.runner import run_experiment as _run, history_to_df as _h2df
+            import os as _os3
+            if _llm_provider == "ollama":
+                from src.llm.ollama_client import OllamaLLM as _OLLM
+                _bllm = _OLLM(model=_llm_model, host=_ollama_host)
+            elif _llm_provider == "local":
+                from src.llm.local import LocalLLM as _LLLM
+                _bllm = _LLLM()
+            else:
+                from src.llm.remote import RemoteLLM as _RLLM
+                _bllm = _RLLM(provider=_llm_provider, api_key=_os3.getenv("LLM_API_KEY"), model=_llm_model)
+            _res = _run(cfg, problem=problem, llm_override=_bllm)
+            _elapsed = _time.time() - _t0
+            _df = _h2df(_res)
+            _df["total_experiment_time_s"] = _elapsed
+            _out = _HERE / "outputs" / f"{problem}_baseline_{_dt.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            _out.parent.mkdir(parents=True, exist_ok=True)
+            _df.to_csv(_out, index=False)
+            st.success(f" Baseline run complete ({_elapsed:.2f}s). Saved to: `{_out.name}`")
+            st.dataframe(_df, width='stretch')
+        except Exception as _e:
+            st.error(f"Baseline run failed: {_e}")
 
 if run_btn:
     cfg.raw["project"]["max_generations"] = generations
@@ -236,7 +317,20 @@ if run_btn:
         time.sleep(0.5)
         
     try:
-        results = run_experiment(cfg, problem=problem)
+        # Build LLM instance from sidebar selection
+        import os as _os2
+        if _llm_provider == "ollama":
+            from src.llm.ollama_client import OllamaLLM
+            _llm_instance = OllamaLLM(model=_llm_model, host=_ollama_host)
+        elif _llm_provider == "local":
+            from src.llm.local import LocalLLM
+            _llm_instance = LocalLLM()
+        else:
+            from src.llm.remote import RemoteLLM
+            _api_key = _os2.getenv("LLM_API_KEY") or _os2.getenv("OPENAI_API_KEY")
+            _llm_instance = RemoteLLM(provider=_llm_provider, api_key=_api_key, model=_llm_model)
+
+        results = run_experiment(cfg, problem=problem, llm_override=_llm_instance)
         elapsed_time = time.time() - start_time
         
         progress_bar.progress(100)
@@ -246,12 +340,12 @@ if run_btn:
         
         # Success message with timing
         st.markdown(f"""
-        <div class="success-box">
-            <h4> Evolution Completed Successfully</h4>
-            <p> <strong>Total Time:</strong> {elapsed_time:.2f} seconds</p>
-            <p> <strong>Generations:</strong> {generations}</p>
-            <p> <strong>Population Size:</strong> {population}</p>
-            <p> <strong>Problem:</strong> {problem.upper()}</p>
+        <div style="background-color:#000000;border:1px solid #00ff88;border-radius:8px;padding:1.2rem;margin:1rem 0;">
+            <h4 style="color:#00ff88;margin:0 0 0.6rem 0;">&#9989; Evolution Completed Successfully</h4>
+            <p style="color:#ffffff;margin:0.3rem 0;">&#9201; <strong style="color:#aaffcc;">Total Time:</strong> {elapsed_time:.2f} seconds</p>
+            <p style="color:#ffffff;margin:0.3rem 0;">&#128260; <strong style="color:#aaffcc;">Generations:</strong> {generations}</p>
+            <p style="color:#ffffff;margin:0.3rem 0;">&#128101; <strong style="color:#aaffcc;">Population Size:</strong> {population}</p>
+            <p style="color:#ffffff;margin:0.3rem 0;">&#127918; <strong style="color:#aaffcc;">Problem:</strong> {problem.upper()}</p>
         </div>
         """, unsafe_allow_html=True)
         
@@ -278,7 +372,7 @@ if run_btn:
             
             # Show the saved plot
             if Path(out_plot).exists():
-                st.image(out_plot, use_column_width=True)
+                st.image(out_plot, width='stretch')
             
             # Best scores comparison with styling
             st.markdown("####  Best Scores by Mode")
@@ -296,7 +390,7 @@ if run_btn:
             
             st.dataframe(
                 best_scores,
-                use_container_width=True,
+                width='stretch',
                 column_config={
                     "rank": st.column_config.NumberColumn(" Rank", help="Performance rank"),
                     "mode": st.column_config.TextColumn("Evolution Mode"),
@@ -314,7 +408,7 @@ if run_btn:
                 ("max", "max"),
                 ("final", "last")
             ]).round(4)
-            st.dataframe(summary_stats, use_container_width=True)
+            st.dataframe(summary_stats, width='stretch')
         
         with tab2:
             # Detailed metrics and convergence analysis
@@ -336,7 +430,7 @@ if run_btn:
                     })
             
             if improvement_data:
-                st.dataframe(pd.DataFrame(improvement_data), use_container_width=True, hide_index=True)
+                st.dataframe(pd.DataFrame(improvement_data), width='stretch', hide_index=True)
             
             # Generation-by-generation breakdown
             st.markdown("####  Generation-by-Generation Evolution")
@@ -357,7 +451,7 @@ if run_btn:
                                 "Improvement": f"{improvement:.4f}"
                             })
                             prev_best_fitness = best_fitness
-                        st.dataframe(pd.DataFrame(mode_history), use_container_width=True, hide_index=True)
+                        st.dataframe(pd.DataFrame(mode_history), width='stretch', hide_index=True)
         
         with tab3:
             # Comparison and operation explanations
@@ -392,7 +486,7 @@ if run_btn:
                     op_rows.append({"Mode": mode, "Operation": op, "Count": count})
             if op_rows:
                 op_df = pd.DataFrame(op_rows)
-                st.dataframe(op_df, use_container_width=True, hide_index=True)
+                st.dataframe(op_df, width='stretch', hide_index=True)
                 
                 # Visualization of operations
                 import matplotlib.pyplot as plt
@@ -472,7 +566,7 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                 
                 # Show raw data preview
                 st.markdown("#####  Raw Data Preview")
-                st.dataframe(df.head(20), use_container_width=True)
+                st.dataframe(df.head(20), width='stretch')
         
         # Final best solution - prominent display
         st.markdown("---")
@@ -481,14 +575,73 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         best_fitness = best_scores.iloc[0]["fitness"]
         
         st.markdown(f"""
-        <div class="success-box">
-            <h4> Winner: {best_mode.upper().replace('_', ' ')}</h4>
-            <p><strong>Fitness Score:</strong> {best_fitness:.4f}</p>
+        <div style="background-color:#000000;border:1px solid #00ff88;border-radius:8px;padding:1.2rem;margin:1rem 0;">
+            <h4 style="color:#00ff88;margin:0 0 0.6rem 0;">&#127942; Winner: {best_mode.upper().replace('_', ' ')}</h4>
+            <p style="color:#ffffff;margin:0.3rem 0;"><strong style="color:#aaffcc;">Fitness Score:</strong> {best_fitness:.4f}</p>
         </div>
         """, unsafe_allow_html=True)
         
         with st.expander("View Best Solution Code", expanded=True):
             st.code(results[best_mode].best_code, language="python")
+
+# LLM Reflection section (always visible after a run or as reference)
+st.markdown("---")
+st.markdown("###  LLM-Based Evolution: Reflection")
+st.markdown("""
+The **LLM-Guided** mode uses a language model (Ollama / remote API) to propose code improvements at each 
+generation instead of purely random mutations. Here is a reflection on what was observed:
+
+**What the LLM does:**  
+Given the current best candidate's code and a task prompt (e.g., *"Improve the Pacman agent to maximize 
+score and survival while minimizing steps"*), the LLM generates a revised version of the code. The prompt 
+is structured as a few-shot instruction that includes the parent fitness score so the model has context 
+about the current performance level.
+
+**Why it may outperform random mutation:**  
+Random mutation applies syntactic perturbations (numeric tweaks, line swaps) that are semantically blind. 
+The LLM encodes domain knowledge about algorithm structure—it can, for example, add smarter heuristics 
+or reorder decision logic in ways that a random mutation cannot. This targeted exploration reduces wasted 
+evaluations on invalid or clearly regressive variants.
+
+**Observed limitations:**  
+- LLM outputs are non-deterministic; the same prompt can yield different code each call.  
+- The model can hallucinate syntax errors or semantically incorrect code, which the evaluator penalizes.  
+- Without fine-tuning on Pacman/matrix domains, improvement is incremental rather than dramatic.  
+- Latency per LLM call is higher than a random mutation, making it slower per generation.
+
+**Comparison of 3 methods:**  
+| Method | Exploration | Domain Knowledge | Speed | Typical Outcome |
+|---|---|---|---|---|
+| No Evolution | None (baseline) | None | Fastest | Constant fitness |
+| Random Mutation | Broad, random | None | Fast | Gradual improvement |
+| LLM-Guided | Focused, semantic | High | Slow | Best final fitness |
+""")
+
+# Future improvements section
+st.markdown("---")
+st.markdown("###  Future Improvements")
+st.markdown("""
+Based on our experiments, the following directions offer the most promising paths forward:
+
+1. **Multi-objective Pareto evolution** — instead of a single scalar fitness, maintain a Pareto front across 
+   objectives (score, survival, efficiency) so the system does not sacrifice one dimension to optimize another.
+
+2. **Fine-tuned LLM for code evolution** — fine-tune a small model specifically on Pacman/algorithm 
+   improvement pairs to reduce hallucinations and increase the hit-rate of beneficial mutations.
+
+3. **Self-adaptive hyperparameters** — evolve the mutation rate, population size, and top-k alongside the 
+   candidate code (meta-evolution / CMA-ES style adaptation) rather than using a fixed schedule.
+
+4. **Diversity preservation** — add a novelty/crowding penalty to prevent premature convergence to a local 
+   optimum when multiple candidates collapse to identical code.
+
+5. **Parallel evaluation** — run candidate evaluations concurrently (multiprocessing or async) to 
+   dramatically reduce wall-clock time per generation.
+
+6. **Memory-augmented LLM prompts** — include a rolling summary of the best N historical candidates and 
+   their fitness in the LLM prompt so the model can reason about the optimization trajectory rather than 
+   improving each candidate independently.
+""")
 
 # References section
 st.markdown("---")
