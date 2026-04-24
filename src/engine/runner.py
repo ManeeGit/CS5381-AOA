@@ -1,3 +1,20 @@
+"""Experiment orchestrator for the Evolve evolutionary code-search framework.
+
+This module is the single entry point for running a full experiment.  It:
+
+1. Reads all settings from a ``Config`` object (populated from ``config.yaml``).
+2. Instantiates the appropriate evaluator wrapper for the chosen problem
+   (``pacman``, ``pseudocode``, or ``matrix``).
+3. Instantiates the LLM backend (Ollama, local, or remote).
+4. Runs three experimental *modes* in sequence via ``Evolver``:
+   * ``no_evolution``    — baseline (no mutation or LLM).
+   * ``random_mutation`` — mutation-only, no LLM.
+   * ``llm_guided``      — mutation + LLM code improvements.
+5. Auto-saves results to a timestamped ``.csv`` (and optionally ``.xlsx``).
+
+The ``RunResult`` dataclass, ``history_to_df()``, and ``plot_results()``
+helpers are consumed by the Streamlit UI (``app.py``) and by ``demo.py``.
+"""
 from __future__ import annotations
 
 import os
@@ -26,12 +43,45 @@ from .evolve import EvolutionConfig, Evolver
 
 @dataclass
 class RunResult:
+    """Results of a single evolutionary experiment run (one mode).
+
+    Attributes
+    ----------
+    mode : str
+        The evolution mode: ``"no_evolution"``, ``"random_mutation"``,
+        or ``"llm_guided"``.
+    history : list of GenerationResult
+        One entry per generation, each containing the best candidate and
+        the full evaluated population.
+    best_code : str
+        Python source code of the best candidate found across all generations.
+    """
     mode: str
     history: List
     best_code: str
 
 
 def load_templates(path: str, pattern: str = "*.py") -> List[str]:
+    """Load all template algorithm files matching ``pattern`` from ``path``.
+
+    Templates are used as donor bodies for the ``replace_function_body``
+    mutation operator.  They should be valid Python files each containing
+    one function that solves the target problem.
+
+    Parameters
+    ----------
+    path : str
+        Directory path to scan for template files.
+    pattern : str
+        Glob pattern to filter files, e.g. ``"matrix_*.py"``.
+        Defaults to ``"*.py"`` (all Python files).
+
+    Returns
+    -------
+    list of str
+        File contents of all matched template files.  Returns an empty list
+        if the directory does not exist.
+    """
     p = Path(path)
     if not p.exists():
         return []
@@ -39,6 +89,37 @@ def load_templates(path: str, pattern: str = "*.py") -> List[str]:
 
 
 def run_experiment(config, problem: str, llm_override=None, on_generation=None) -> Dict[str, RunResult]:
+    """Run a full three-mode evolutionary experiment and return the results.
+
+    Orchestrates the entire experiment lifecycle:
+
+    1. Sets a reproducibility seed from ``config.project.seed``.
+    2. Initialises the LLM backend (or uses ``llm_override`` from the UI).
+    3. Builds the appropriate evaluator wrapper for ``problem``.
+    4. Loads the base code and template pool for the problem.
+    5. Runs ``Evolver.run()`` three times (one per mode) in sequence.
+    6. Calls ``_auto_save_results`` to persist a timestamped CSV.
+
+    Parameters
+    ----------
+    config : Config
+        Parsed YAML configuration object (``src.utils.config.Config``).
+    problem : str
+        Problem identifier: ``"pacman"``, ``"pseudocode"``, or ``"matrix"``.
+    llm_override : LLMClient, optional
+        If provided, skip reading the LLM provider from config and use this
+        client directly.  Used by the Streamlit UI to pass a pre-configured
+        backend.
+    on_generation : callable, optional
+        Callback ``fn(mode, generation_result)`` called after each generation.
+        Used by the Streamlit UI to update the live progress chart.
+
+    Returns
+    -------
+    dict mapping str to RunResult
+        Keys are the three mode names; values are ``RunResult`` objects
+        containing the full generation history and best code.
+    """
     # Apply reproducibility seed from config
     import random as _random
     _seed = config.get("project", "seed", default=42)
@@ -195,7 +276,23 @@ def run_experiment(config, problem: str, llm_override=None, on_generation=None) 
 
 
 def _auto_save_results(results: Dict[str, RunResult], problem: str, total_time: float) -> None:
-    """Automatically save experiment results to a timestamped CSV file."""
+    """Persist experiment results to a timestamped CSV (and Excel if possible).
+
+    Creates ``outputs/<problem>_results_<timestamp>.csv`` under the project
+    root, appending a ``total_experiment_time_s`` column.  Attempts to also
+    write an ``.xlsx`` file (requires ``openpyxl``); silently skips Excel if
+    the package is not installed.
+
+    Parameters
+    ----------
+    results : dict
+        The return value of ``run_experiment`` — maps mode name to
+        ``RunResult``.
+    problem : str
+        Problem identifier used in the output filename.
+    total_time : float
+        Wall-clock seconds for the entire experiment run.
+    """
     from datetime import datetime
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     out_dir = _PROJECT_ROOT / "outputs"
@@ -217,6 +314,25 @@ def _auto_save_results(results: Dict[str, RunResult], problem: str, total_time: 
 
 
 def history_to_df(results: Dict[str, RunResult]) -> pd.DataFrame:
+    """Convert experiment results to a tidy long-format DataFrame.
+
+    Each row represents one generation of one mode.  The ``no_evolution``
+    mode typically stops after generation 1 (it never improves), so the
+    function pads it with repeated rows out to ``max_gen`` so charts show
+    a flat reference line rather than a single point.
+
+    Parameters
+    ----------
+    results : dict
+        Return value of ``run_experiment``.
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns: ``mode``, ``generation``, ``fitness``, one ``metric_*``
+        column per evaluator dimension, and (after ``_auto_save_results``)
+        ``total_experiment_time_s``.
+    """
     rows = []
     for mode, res in results.items():
         for gen in res.history:
@@ -250,6 +366,21 @@ def history_to_df(results: Dict[str, RunResult]) -> pd.DataFrame:
 
 
 def plot_results(df: pd.DataFrame, out_path: str) -> None:
+    """Save a fitness-over-generations line chart to ``out_path``.
+
+    Plots one line per evolution mode.  The ``no_evolution`` baseline is
+    rendered as a dashed line extended across all generations so it is
+    visually distinct from the mutation and LLM-guided curves.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Output of ``history_to_df()`` — must have ``generation``, ``fitness``,
+        and ``mode`` columns.
+    out_path : str
+        Absolute or relative path where the PNG chart should be saved.
+        Parent directories are created automatically.
+    """
     plt.figure(figsize=(8, 4))
     # Ensure no_evolution appears as a flat reference line across all gens
     max_gen = int(df["generation"].max()) if not df.empty else 1
@@ -272,6 +403,30 @@ def plot_results(df: pd.DataFrame, out_path: str) -> None:
 
 
 def _load_base_code(path: str, fallback: str, inline_fallback: str | None = None) -> str:
+    """Load the base algorithm code from ``path`` with multiple fallback levels.
+
+    Validates the file contents with ``ast.parse`` so a corrupt or partially
+    written file is treated the same as a missing one.  Falls back in order:
+
+    1. ``path`` (primary file).
+    2. ``fallback`` (secondary file, if different from ``path``).
+    3. ``inline_fallback`` (hard-coded string passed by the caller).
+    4. Minimal valid Pacman agent (last-resort catch-all).
+
+    Parameters
+    ----------
+    path : str
+        Primary file path to read.
+    fallback : str
+        Secondary file path tried if ``path`` is missing or invalid.
+    inline_fallback : str, optional
+        Hard-coded algorithm string used when both files are unavailable.
+
+    Returns
+    -------
+    str
+        Syntactically valid Python source code ready to seed the population.
+    """
     import ast as _ast
 
     def _try_load(p: str) -> str | None:

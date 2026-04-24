@@ -1,3 +1,30 @@
+"""Mutation operators for the Evolve evolutionary search framework.
+
+A *mutation operator* is a function that takes a piece of Python source code
+and returns a modified version.  Each operator targets a different structural
+level of the code, from numeric-constant tweaks (low impact) to wholesale
+function-body replacement (high impact).
+
+All public operators share the same signature::
+
+    operator(code, [templates]) -> (new_code: str, description: str)
+
+The ``description`` is a human-readable log of exactly what changed, stored
+in the ``Candidate.meta`` dict so every mutation decision is traceable.
+
+Operator hierarchy (by impact)
+-------------------------------
+1. ``replace_function_body``  (weight 3×)  — swap entire algorithm body.
+2. ``replace_fragment``        (weight 2×)  — replace a 3–6 line block.
+3. ``reorder_loops``           (weight 1×)  — swap adjacent nested for-loops.
+4. ``swap_two_lines``          (weight 1×)  — swap two same-indent non-structural lines.
+5. ``random_perturb_parameters`` (weight 1×) — tweak integer literals.
+6. ``add_early_return``        (weight 1×)  — add an empty-input guard.
+
+The top-level dispatcher ``mutate_with_meta()`` randomly picks an operator
+according to these weights and validates the result.  Syntax errors in the
+mutated code trigger an automatic fallback to ``replace_function_body``.
+"""
 from __future__ import annotations
 
 import ast
@@ -43,10 +70,30 @@ def random_perturb_parameters(code: str) -> Tuple[str, str]:
 
 
 def swap_two_lines(code: str) -> Tuple[str, str]:
-    """Swap two non-structural lines at the same indentation level.
+    """Swap two non-structural lines that share the same indentation level.
 
-    Only swaps assignment / expression lines — never def/for/while/return/if
-    lines which would break the algorithm's control flow.
+    Structural lines (``def``, ``class``, ``for``, ``while``, ``if``,
+    ``elif``, ``else:``, ``try:``, ``except``, ``return``, ``with``,
+    ``yield``) are explicitly excluded from swapping because moving them
+    almost always breaks the algorithm's control flow while still producing
+    syntactically valid code (leading the evaluator to silently accept a
+    broken algorithm).
+
+    Only assignment and expression lines at the *same indentation level* are
+    candidates for swapping, ensuring that we stay within the same lexical
+    scope.
+
+    Parameters
+    ----------
+    code : str
+        Python source code to apply the swap to.
+
+    Returns
+    -------
+    tuple of (str, str)
+        ``(new_code, description)`` where ``description`` identifies the
+        two line numbers that were swapped, or explains why swapping was
+        skipped.
     """
     lines = code.splitlines()
 
@@ -74,7 +121,30 @@ def swap_two_lines(code: str) -> Tuple[str, str]:
 
 
 def replace_fragment(code: str, templates: List[str]) -> Tuple[str, str]:
-    """Replace a small random code segment with a short snippet from a template."""
+    """Replace a short contiguous block of lines with a snippet from a template.
+
+    A random template is chosen, and a random window of 3–6 consecutive
+    lines is extracted from its body (skipping ``class``, ``import``, and
+    ``from`` lines).  That snippet is then inserted into the current code at
+    a random mid-section position, replacing the same number of lines.
+
+    This operator creates *partial hybrids* — candidates that blend logic
+    from two different algorithm families.  Most hybrids evaluate poorly,
+    but occasionally the transplanted snippet improves a specific path.
+
+    Parameters
+    ----------
+    code : str
+        Python source code to modify.
+    templates : list of str
+        Pre-written algorithm strings to draw snippets from.
+
+    Returns
+    -------
+    tuple of (str, str)
+        ``(new_code, description)`` identifying the replaced line range,
+        or an explanation of why the operation was skipped.
+    """
     if not templates:
         return code, "Fragment replacement skipped (no templates)"
     template_lines = random.choice(templates).splitlines()
@@ -95,12 +165,37 @@ def replace_fragment(code: str, templates: List[str]) -> Tuple[str, str]:
 
 
 def replace_function_body(code: str, templates: List[str]) -> Tuple[str, str]:
-    """Replace the entire body of the first function with a body from a template.
+    """Replace the entire function body with a body from a randomly chosen template.
 
-    This is the most powerful random mutation for algorithm-level improvements:
-    it swaps the whole implementation while preserving the function signature,
-    allowing the population to explore completely different algorithm families
-    (e.g. bubble sort → insertion sort → merge sort).
+    This is the highest-impact mutation operator.  It preserves the current
+    file’s header (comments, imports) and the existing function signature
+    (the ``def`` line — keeping the function name and argument list) but
+    swaps out the entire implementation with the body of a randomly selected
+    template algorithm.
+
+    **Why is this powerful?**  Smaller operators like ``swap_two_lines`` can
+    only explore the neighbourhood of the current algorithm.  This operator
+    jumps the entire population to a completely different point in algorithm
+    space (e.g., bubble sort → insertion sort → ``sorted()`` built-in),
+    enabling the search to escape local optima that finer-grained mutations
+    cannot.
+
+    It is listed with weight 3× in ``mutate_with_meta`` so it is chosen
+    roughly one-third of the time.
+
+    Parameters
+    ----------
+    code : str
+        Current Python source code whose function body will be replaced.
+    templates : list of str
+        Pre-written algorithm strings; one is chosen at random as the donor.
+
+    Returns
+    -------
+    tuple of (str, str)
+        ``(new_code, description)``.  ``new_code`` keeps the original
+        signature but has the template’s body.  Returns ``(code, reason)``
+        unchanged if no suitable template or function is found.
     """
     if not templates:
         return code, "Function body replacement skipped (no templates)"
@@ -128,7 +223,33 @@ def replace_function_body(code: str, templates: List[str]) -> Tuple[str, str]:
 
 
 def add_early_return(code: str) -> Tuple[str, str]:
-    """Add an early-return optimisation for empty/single-element input."""
+    """Insert an early-return guard clause for trivially sorted inputs.
+
+    Adds the following two lines immediately after the ``def`` line of the
+    first function found in the code::
+
+        if len(arr) <= 1:
+            return arr[:]
+
+    This is a standard algorithmic optimisation: if the input is empty or
+    has only one element it is already sorted, so no further work is needed.
+    For practical inputs this rarely changes the fitness score, but it is a
+    valid best-practice improvement that good sorting algorithms should have.
+
+    The operator is idempotent — if a guard already exists it returns the
+    code unchanged.
+
+    Parameters
+    ----------
+    code : str
+        Python source code of a sorting function.
+
+    Returns
+    -------
+    tuple of (str, str)
+        ``(new_code, description)`` confirming whether the guard was added
+        or was already present.
+    """
     if "if len(arr) <= 1" in code or "if not arr" in code:
         return code, "Early-return already present"
     lines = code.splitlines()
@@ -143,7 +264,31 @@ def add_early_return(code: str) -> Tuple[str, str]:
 
 
 def reorder_loops(code: str) -> Tuple[str, str]:
-    """Try swapping the order of two adjacent nested for-loops (matrix optimisation)."""
+    """Swap the order of two adjacent nested for-loops (matrix cache optimisation).
+
+    Scans the source code for the first pair of consecutive ``for`` lines
+    where the second loop is indented deeper (i.e., it is genuinely nested
+    inside the first).  It then swaps the two loop headers — effectively
+    changing the loop traversal order.
+
+    **Why does this matter for matrix multiply?**
+    The standard i-j-k loop order accesses column ``b[k][j]`` non-sequentially
+    in memory, causing cache misses.  The i-k-j order accesses ``b[k][j]``
+    sequentially in the inner-most loop, which is cache-friendly and
+    measurably faster on real hardware.  The fitness function rewards fewer
+    arithmetic operations, so this can produce a small but real improvement.
+
+    Parameters
+    ----------
+    code : str
+        Python source code potentially containing nested for-loops.
+
+    Returns
+    -------
+    tuple of (str, str)
+        ``(new_code, description)`` identifying the swapped line numbers,
+        or an explanation if no suitable nested loops were found.
+    """
     lines = code.splitlines()
     for i in range(len(lines) - 1):
         if (lines[i].strip().startswith("for ") and
@@ -163,21 +308,72 @@ def reorder_loops(code: str) -> Tuple[str, str]:
 # -------------------------------------------------------------------------
 
 def mutate(code: str, templates: List[str]) -> str:
-    """Apply a random mutation and return the new code (discard description)."""
+    """Apply one randomly selected mutation and return the modified code.
+
+    Convenience wrapper around ``mutate_with_meta`` that discards the
+    provenance metadata.  Use this when only the new code is needed and
+    logging is not required.
+
+    Parameters
+    ----------
+    code : str
+        Python source code to mutate.
+    templates : list of str
+        Algorithm template strings used by replacement operators.
+
+    Returns
+    -------
+    str
+        Mutated Python source code.  Guaranteed to be syntactically valid
+        (the dispatcher falls back to ``replace_function_body`` on syntax
+        errors).
+    """
     new_code, _ = mutate_with_meta(code, templates)
     return new_code
 
 
 def mutate_with_meta(code: str, templates: List[str]) -> Tuple[str, Dict[str, str]]:
-    """Apply a random mutation and return (new_code, meta_dict).
+    """Apply one randomly selected mutation and return the result with metadata.
 
-    Operator weights are tuned so that high-impact structural mutations
-    (replace_function_body) are used often enough to escape local minima,
-    while cheaper perturbation operators fill the rest of the budget.
+    This is the primary entry point used by ``Evolver`` when producing
+    children.  It selects an operator from a weighted list, applies it,
+    validates the result, and returns both the new code and a provenance
+    dictionary that is stored in ``Candidate.meta`` for full traceability.
 
-    The meta dict contains:
-    - ``op``: short operation name
-    - ``op_description``: human-readable description of the transformation
+    Operator selection weights
+    --------------------------
+    Operators are represented multiple times in the list to implement
+    integer weights without extra logic:
+
+    * ``replace_function_body``  ×3 (33 % chance)
+    * ``replace_fragment``       ×2 (22 % chance)
+    * ``reorder_loops``          ×1 (11 % chance)
+    * ``swap_two_lines``         ×1 (11 % chance)
+    * ``random_perturb_parameters`` ×1 (11 % chance)
+    * ``add_early_return``       ×1 (11 % chance)
+
+    Syntax-error fallback
+    ---------------------
+    If the chosen operator produces code that ``ast.parse()`` rejects,
+    ``replace_function_body`` is retried as a safe fallback (it always
+    produces valid Python when templates are available).  The ``op`` key
+    in the returned metadata is prefixed with ``[syntax-fixed]`` to signal
+    the fallback was used.
+
+    Parameters
+    ----------
+    code : str
+        Current Python source code to mutate.
+    templates : list of str
+        Pre-written algorithm strings available as replacement bodies.
+
+    Returns
+    -------
+    tuple of (str, dict)
+        ``(new_code, meta)`` where ``meta`` contains:
+
+        * ``op`` — short operator key (e.g. ``"replace_body"``, ``"swap_lines"``)
+        * ``op_description`` — plain-English description of the transformation
     """
     ops = [
         # weight 3 — high impact: swap entire algorithm implementation

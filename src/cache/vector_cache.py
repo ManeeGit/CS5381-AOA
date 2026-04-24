@@ -122,7 +122,28 @@ class VectorCache:
     # ------------------------------------------------------------------
 
     def get(self, code: str) -> Optional[Dict]:
-        """Return cached record (exact or approximate match), or None."""
+        """Look up a candidate by exact hash, then by approximate similarity.
+
+        Two-stage lookup:
+
+        1. **Exact match** — SHA-256 hash of ``code`` is looked up in the
+           in-memory index.  O(1), no vector computation.
+        2. **Approximate match** — if the index has at least 3 entries, the
+           query is vectorised (TF-IDF) and the nearest cached code is found
+           via cosine similarity.  If the similarity ≥ ``sim_threshold`` the
+           cached record is returned as an approximate fitness estimate.
+
+        Parameters
+        ----------
+        code : str
+            Python source code of the candidate to look up.
+
+        Returns
+        -------
+        dict or None
+            Cached fitness record with keys ``hash``, ``fitness``,
+            ``metrics``, ``timestamp``, or ``None`` on cache miss.
+        """
         # 1. Exact match via hash
         h = self._hash(code)
         if h in self._index:
@@ -137,6 +158,25 @@ class VectorCache:
         return None
 
     def set(self, code: str, fitness: float, metrics: Dict[str, float]) -> None:
+        """Store a new fitness record in the cache.
+
+        Computes the SHA-256 hash of ``code`` and writes the record to both
+        the in-memory index and the JSONL backing file.  Idempotent — if the
+        hash is already in the index the record is silently skipped.
+
+        Also appends ``code`` to the in-memory ``_codes`` list used for
+        vector similarity searches and marks ``_dirty = True`` so the
+        vector index will be rebuilt on the next ``get`` call.
+
+        Parameters
+        ----------
+        code : str
+            Python source code of the evaluated candidate.
+        fitness : float
+            Fitness score in [0, 1] as returned by the evaluator.
+        metrics : dict
+            Detailed per-dimension metric dictionary (varies by evaluator).
+        """
         from datetime import datetime, timezone
         h = self._hash(code)
         if h in self._index:
@@ -158,6 +198,15 @@ class VectorCache:
     # ------------------------------------------------------------------
 
     def _load(self) -> None:
+        """Load the JSONL cache file into the in-memory index.
+
+        Reads each line from ``fitness_cache.jsonl``, parsing JSON records.
+        Only hashes and fitness data are stored in the file (not the raw
+        code), so vectors cannot be rebuilt from the file alone — they are
+        built lazily from ``_codes`` which accumulates during the session.
+
+        Silently skips malformed lines.
+        """
         if not self.path.exists():
             return
         # We store hashes + fitness only, not the full code.
@@ -171,6 +220,13 @@ class VectorCache:
                 continue
 
     def _rebuild_vectors(self) -> None:
+        """Rebuild the TF-IDF matrix from all in-session cached codes.
+
+        Called lazily when ``_dirty`` is set (i.e., after any ``set`` call).
+        Tokenises every code in ``_codes``, re-fits the TF-IDF vocabulary,
+        and stores the L2-normalised embedding matrix in ``_vectors``.
+        Sets ``_dirty = False`` so subsequent queries skip the rebuild.
+        """
         if not self._codes:
             return
         docs = [_tokenize(c) for c in self._codes]
@@ -178,6 +234,22 @@ class VectorCache:
         self._dirty = False
 
     def _nearest(self, code: str) -> Optional[Dict]:
+        """Find the most similar cached code and return its record.
+
+        Vectorises ``code`` using the current TF-IDF vocabulary, computes
+        cosine similarity against all cached vectors, and returns the record
+        for the nearest neighbour if its similarity ≥ ``sim_threshold``.
+
+        Parameters
+        ----------
+        code : str
+            Python source code to query.
+
+        Returns
+        -------
+        dict or None
+            Nearest cached fitness record, or ``None`` if below threshold.
+        """
         if self._dirty:
             self._rebuild_vectors()
         if self._vectors is None or len(self._vectors) == 0:
@@ -198,6 +270,10 @@ class VectorCache:
 
     @staticmethod
     def _hash(code: str) -> str:
+        """Return the SHA-256 hex digest of ``code`` (UTF-8 encoded).
+
+        Used as the unique cache key for exact-match lookups.
+        """
         return hashlib.sha256(code.encode("utf-8")).hexdigest()
 
 

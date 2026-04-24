@@ -87,7 +87,24 @@ class PseudocodeEvaluator:
     # ------------------------------------------------------------------
 
     def _score_correctness(self, func) -> float:
-        """Fraction of sorting test cases the function passes."""
+        """Measure what fraction of sorting test cases the function solves correctly.
+
+        Runs ``cfg.samples`` trials with lists of lengths 0–20, containing
+        random integers in \u2212100…100, using a fixed seed (42) for
+        reproducibility.  Supports both copy-returning and in-place sort
+        semantics — if the function returns ``None`` the input copy is
+        inspected instead.
+
+        Parameters
+        ----------
+        func : callable
+            A Python function extracted from candidate code.
+
+        Returns
+        -------
+        float
+            Score in [0, 1] — 1.0 means all test cases passed.
+        """
         rng = random.Random(42)
         passed = 0
         for _ in range(self.cfg.samples):
@@ -110,7 +127,27 @@ class PseudocodeEvaluator:
         return passed / self.cfg.samples
 
     def _score_runtime(self, func) -> float:
-        """Inverse-normalised average execution time.  Faster = higher score."""
+        """Score execution speed as an inverse-normalised average time.
+
+        Runs ``cfg.samples`` trials on 50-element random integer lists,
+        timing each with ``time.perf_counter``.  The average time is
+        normalised against ``cfg.max_time_s``:
+
+            score = max(0, 1 − avg_time / max_time_s)
+
+        A perfectly instant function scores 1.0; a function that takes
+        exactly ``max_time_s`` or longer scores 0.0.
+
+        Parameters
+        ----------
+        func : callable
+            A Python function extracted from candidate code.
+
+        Returns
+        -------
+        float
+            Speed score in [0, 1].  Higher is faster.
+        """
         rng = random.Random(99)
         times = []
         for _ in range(self.cfg.samples):
@@ -127,7 +164,21 @@ class PseudocodeEvaluator:
         return round(score, 6)
 
     def _score_length(self, code: str) -> float:
-        """Shorter code (without being empty) scores higher."""
+        """Penalise unnecessarily long code; shorter (but non-empty) scores higher.
+
+        Computes ``max(0, 1 \u2212 len(code) / cfg.max_length)``.
+        An empty string returns 0.0 to avoid rewarding trivially empty code.
+
+        Parameters
+        ----------
+        code : str
+            Python source code of the candidate.
+
+        Returns
+        -------
+        float
+            Length score in [0, 1].  Shorter code scores higher.
+        """
         length = len(code.strip())
         if length == 0:
             return 0.0
@@ -135,11 +186,29 @@ class PseudocodeEvaluator:
         return round(score, 6)
 
     def _score_readability(self, code: str) -> float:
-        """
-        Heuristic readability score based on:
-        - Comment density (lines with # comments / total lines)
-        - Fraction of identifiers following snake_case or short naming
-        - Average identifier length (penalise very long names)
+        """Heuristic readability score (0–1) from two sub-scores.
+
+        Sub-score 1 — **Comment density** (50 % weight):
+            ``min(1.0, comment_lines / total_lines \u00d7 5)``
+            So one comment per five lines achieves the maximum sub-score.
+
+        Sub-score 2 — **Identifier quality** (50 % weight):
+            The average length of all ``ast.Name`` identifiers is compared
+            to an ideal of 7 characters.  The further the average drifts
+            from 7, the lower the score.
+
+        Both sub-scores are in [0, 1]; the readability score is their
+        equal-weight average.
+
+        Parameters
+        ----------
+        code : str
+            Python source code of the candidate.
+
+        Returns
+        -------
+        float
+            Readability score in [0, 1].
         """
         lines = code.splitlines()
         if not lines:

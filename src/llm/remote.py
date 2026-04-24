@@ -1,3 +1,19 @@
+"""Remote LLM backend supporting cloud AI APIs (OpenAI, Google Gemini).
+
+This backend delegates code-improvement calls to cloud AI services.  It
+requires an API key and an active internet connection.
+
+Configuration via environment variables::
+
+    export LLM_API_KEY="sk-..."         # OpenAI key
+    export LLM_API_KEY="AIza..."        # Gemini key
+
+Or set ``LLM_API_KEY`` in the project's ``.env`` file.  The provider and
+model are controlled via ``config.yaml`` (``llm.provider``, ``llm.model_name``).
+
+If the API is unreachable or the key is missing the backend degrades
+gracefully to a deterministic no-op (returns original code + comment header).
+"""
 from __future__ import annotations
 
 import os
@@ -10,12 +26,13 @@ class RemoteLLM(LLMClient):
     """
     Remote LLM client supporting OpenAI GPT and Gemini APIs.
     
-    Usage:
+    Usage::
+
         # Set environment variable
         export LLM_API_KEY="your-api-key"
         
         # Create client
-        llm = RemoteLLM(provider="openai", model="gpt-4")  # or "gpt-3.5-turbo"
+        llm = RemoteLLM(provider="openai", model="gpt-4")
         llm = RemoteLLM(provider="gemini", model="gemini-pro")
     """
     
@@ -25,6 +42,24 @@ class RemoteLLM(LLMClient):
         api_key: Optional[str] = None,
         model: str = "gpt-3.5-turbo"
     ):
+        """Initialise the remote LLM client.
+
+        Reads the API key from the parameter, then falls back to the
+        ``LLM_API_KEY`` or ``OPENAI_API_KEY`` environment variables.
+        Does not make any network calls at construction time.
+
+        Parameters
+        ----------
+        provider : str
+            Cloud provider to use.  Supported values: ``"openai"``, ``"gemini"``.
+            Defaults to ``"openai"``.
+        api_key : str, optional
+            API key for the chosen provider.  If ``None``, the value is read
+            from the ``LLM_API_KEY`` or ``OPENAI_API_KEY`` environment variable.
+        model : str
+            Model identifier, e.g. ``"gpt-4"``, ``"gpt-3.5-turbo"``,
+            ``"gemini-pro"``.
+        """
         self.provider = provider.lower()
         self.api_key = api_key or os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY")
         self.model = model
@@ -57,7 +92,25 @@ class RemoteLLM(LLMClient):
             self._client = None
 
     def improve(self, prompt: str, code: str) -> str:
-        """Improve code using the remote LLM API."""
+        """Improve code by calling the configured cloud AI API.
+
+        Dispatches to the provider-specific helper (``_improve_openai`` or
+        ``_improve_gemini``).  Falls back to ``_fallback_improve`` if the
+        API client was not initialised or if the API call raises an exception.
+
+        Parameters
+        ----------
+        prompt : str
+            Natural-language optimisation goal.
+        code : str
+            Python source code to improve.
+
+        Returns
+        -------
+        str
+            Improved Python source code, or the original code with a comment
+            header if the API call failed.
+        """
         if not self._client:
             return self._fallback_improve(prompt, code)
         
@@ -73,7 +126,24 @@ class RemoteLLM(LLMClient):
             return self._fallback_improve(prompt, code)
 
     def _improve_openai(self, prompt: str, code: str) -> str:
-        """Improve code using OpenAI GPT."""
+        """Call the OpenAI Chat Completions API to improve the code.
+
+        Sends a system message (optimizer role + rules) and a user message
+        (goal + current code).  Strips any markdown fences from the response
+        so the returned string is clean Python source code.
+
+        Parameters
+        ----------
+        prompt : str
+            Optimisation goal forwarded to the model.
+        code : str
+            Current Python source code.
+
+        Returns
+        -------
+        str
+            Improved Python source code as returned by the GPT model.
+        """
         system_message = """You are an expert algorithm optimizer. Your task is to improve code for better performance while maintaining correctness.
         
         Rules:
@@ -112,7 +182,23 @@ Provide an improved version of this code."""
         return improved_code
 
     def _improve_gemini(self, prompt: str, code: str) -> str:
-        """Improve code using Google Gemini."""
+        """Call the Google Gemini API to improve the code.
+
+        Constructs a single combined prompt (goal + current code) and calls
+        ``generate_content``.  Strips markdown fences from the response.
+
+        Parameters
+        ----------
+        prompt : str
+            Optimisation goal forwarded to the model.
+        code : str
+            Current Python source code.
+
+        Returns
+        -------
+        str
+            Improved Python source code as returned by the Gemini model.
+        """
         full_prompt = f"""You are an expert algorithm optimizer. Improve the following code based on this goal: {prompt}
 
 Current code:
@@ -132,9 +218,24 @@ Return ONLY the improved code without any explanations or markdown formatting.""
         return improved_code
 
     def _fallback_improve(self, prompt: str, code: str) -> str:
-        """
-        Fallback improvement when API is not available.
-        Adds a simple comment to indicate attempted improvement.
+        """Return the original code unchanged when the API is unavailable.
+
+        Prepends a single-line comment that encodes the optimisation goal so
+        the candidate has a unique hash and is not confused with the unmodified
+        base code in the fitness cache.  Idempotent — adding the header a
+        second time is skipped.
+
+        Parameters
+        ----------
+        prompt : str
+            Optimisation goal (first 50 characters used in the comment).
+        code : str
+            Original Python source code.
+
+        Returns
+        -------
+        str
+            Code with header comment, or original code if already present.
         """
         header = f"# Improved variant (API unavailable) - Goal: {prompt[:50]}"
         if header[:20] in code:

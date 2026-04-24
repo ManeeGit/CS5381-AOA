@@ -1,3 +1,21 @@
+"""Fitness evaluator for Pacman AI agent code.
+
+This evaluator scores candidate Pacman agent Python files by either:
+
+* **Running the real Pacman simulator** (``pacman.py`` from the Berkeley
+  teaching framework) if it is present in ``cfg.root_path``, extracting
+  ``Score``, ``Steps``, and ``Survival Time`` from stdout.
+* **Simulating deterministically** via ``_simulate_from_agent_file`` (hash-
+  seeded RNG + code-quality heuristics) when the real simulator is absent.
+  This lets the evolution loop run in environments where the Pacman
+  dependencies are not installed.
+
+Fitness formula
+---------------
+fitness = 0.6 \u00d7 score + 0.3 \u00d7 survival \u2212 0.1 \u00d7 steps
+
+(Higher score and longer survival are better; fewer steps is better.)
+"""
 from __future__ import annotations
 
 import hashlib
@@ -11,6 +29,21 @@ from typing import Dict, Tuple
 
 @dataclass
 class PacmanConfig:
+    """Configuration for the Pacman evaluator.
+
+    Attributes
+    ----------
+    root_path : str
+        Absolute path to the Pacman project directory (contains ``pacman.py``).
+    base_agent_path : str
+        Path to the current candidate agent file.  Used by the deterministic
+        simulator when the real Pacman binary is not available.
+    command : str
+        Shell command template to run the Pacman game.  May contain
+        ``{root}``, ``{agent}``, and ``{layout}`` placeholders.
+    layout : str
+        Name of the Pacman layout (maze) to use, e.g. ``"mediumGrid"``.
+    """
     root_path: str
     base_agent_path: str
     command: str
@@ -18,10 +51,36 @@ class PacmanConfig:
 
 
 class PacmanEvaluator:
+    """Run the Pacman simulator and extract a fitness score from the output.
+
+    Parameters
+    ----------
+    cfg : PacmanConfig
+        Paths and command configuration for the Pacman simulation.
+    """
+
     def __init__(self, cfg: PacmanConfig):
         self.cfg = cfg
 
     def evaluate(self, agent_name: str) -> Tuple[float, Dict[str, float]]:
+        """Run one Pacman game and return the fitness score.
+
+        If ``pacman.py`` is present in ``cfg.root_path`` the real simulator
+        is invoked via subprocess.  Otherwise the deterministic simulator
+        (``_simulate_from_agent_file``) is used as a fallback.
+
+        Parameters
+        ----------
+        agent_name : str
+            Name of the agent class to pass to the Pacman command, e.g.
+            ``"MyAgent"``.
+
+        Returns
+        -------
+        tuple of (float, dict)
+            ``(fitness, metrics)`` where ``metrics`` has keys ``score``,
+            ``steps``, and ``survival``.
+        """
         root = Path(self.cfg.root_path)
         pacman_py = root / "pacman.py"
         if not pacman_py.exists():
@@ -135,6 +194,23 @@ def _code_quality_score(code: str) -> float:
 
 
 def _extract_metric(text: str, pattern: str, default: float) -> float:
+    """Extract a single numeric metric from Pacman simulator stdout.
+
+    Parameters
+    ----------
+    text : str
+        Combined stdout + stderr from the Pacman subprocess.
+    pattern : str
+        Regex pattern with one capture group that matches the numeric value,
+        e.g. ``r"Score: (-?\\d+(?:\\.\\d+)?)"``.
+    default : float
+        Value to return when the pattern is not found.
+
+    Returns
+    -------
+    float
+        Extracted metric value, or ``default`` if the pattern did not match.
+    """
     m = re.search(pattern, text)
     if not m:
         return default

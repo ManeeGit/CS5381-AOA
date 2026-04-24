@@ -1,3 +1,24 @@
+"""Local LLM backend using the Ollama REST API.
+
+Ollama (https://ollama.com) runs AI models locally on your machine and
+exposes a simple HTTP API.  This module wraps that API so the Evolve
+evolution engine can transparently request AI-assisted code improvements
+without needing any cloud subscription.
+
+Quick setup::
+
+    # 1. Install Ollama (https://ollama.com/download)
+    # 2. Pull a code model:
+    ollama pull qwen2.5-coder:7b
+    # 3. Start the server (runs in the background):
+    ollama serve
+
+Default endpoint: ``http://localhost:11434``
+Default model:    ``qwen2.5-coder:7b``
+
+If Ollama is unavailable the client degrades to a deterministic no-op so
+the evolutionary loop never crashes.
+"""
 from __future__ import annotations
 
 import json
@@ -45,7 +66,31 @@ class OllamaLLM(LLMClient):
     # ------------------------------------------------------------------
 
     def improve(self, prompt: str, code: str) -> str:
-        """Send code + task description to the local Ollama LLM and return improved code."""
+        """Request an improved version of ``code`` from the local Ollama model.
+
+        Builds a chat-style request (system prompt + user message) and posts
+        it to the Ollama ``/api/chat`` endpoint with ``stream=False``.  The
+        raw model output is cleaned with ``_extract_code`` and
+        ``_sanitize_code`` before being returned.
+
+        Falls back to ``_fallback_improve`` if:
+        * Ollama is not running or no model is pulled.
+        * The HTTP request times out or returns a non-2xx status.
+        * The model returns only non-Python text.
+
+        Parameters
+        ----------
+        prompt : str
+            Natural-language optimisation goal, e.g.
+            ``"Reduce the number of arithmetic operations."``
+        code : str
+            Current Python source code to improve.
+
+        Returns
+        -------
+        str
+            Improved Python source code, or ``code`` unchanged on failure.
+        """
         if not self._is_available():
             return self._fallback_improve(code)
 
@@ -92,7 +137,24 @@ class OllamaLLM(LLMClient):
     # ------------------------------------------------------------------
 
     def _is_available(self) -> bool:
-        """Test whether Ollama is reachable and the model exists. Always re-checks."""
+        """Check whether Ollama is reachable and a usable model is available.
+
+        Performs two lightweight HTTP calls on every invocation:
+
+        1. ``GET /api/tags`` to confirm the server is up.
+        2. A second ``GET /api/tags`` to check that ``self.model`` is in the
+           list of pulled models.  If not, the method tries ``_FALLBACK_MODEL``
+           and then the first model in the list before giving up.
+
+        The fallback model logic means the system gracefully degrades when the
+        preferred model is not pulled rather than raising a hard error.
+
+        Returns
+        -------
+        bool
+            ``True`` if the server is up and at least one model is available,
+            ``False`` otherwise.
+        """
         # 1. Ping the server
         try:
             requests.get(f"{self.host}/api/tags", timeout=5).raise_for_status()
@@ -128,7 +190,31 @@ class OllamaLLM(LLMClient):
 
     @staticmethod
     def _extract_code(text: str) -> str:
-        """Strip markdown code fences. Returns the longest code block found."""
+        """Strip markdown fences from model output and return the longest code block.
+
+        Models often wrap their responses in fenced code blocks::
+
+            ```python
+            def sort(arr): ...
+            ```
+
+        This method extracts all fenced blocks with ``re.findall``, strips
+        whitespace, and returns the *longest* one (models tend to put the
+        most complete version last).  If no fences are present it searches
+        for the first line that starts with a Python keyword (``from``,
+        ``import``, ``class``, ``def``) and returns everything from there.
+
+        Parameters
+        ----------
+        text : str
+            Raw text output from the LLM.
+
+        Returns
+        -------
+        str
+            Extracted Python source code, or ``text`` stripped if nothing
+            recognisable was found.
+        """
         # Find ALL fenced blocks (```python ... ``` or ``` ... ```)
         blocks = re.findall(r"```(?:python)?\s*\n?(.*?)```", text, re.DOTALL)
         if blocks:
@@ -144,7 +230,30 @@ class OllamaLLM(LLMClient):
 
     @staticmethod
     def _sanitize_code(code: str) -> str:
-        """Remove duplicate class definitions, keeping the last (most evolved) one."""
+        """Remove duplicate class definitions from model output, keeping the last one.
+
+        LLMs sometimes emit the original class definition followed by the
+        improved one, both in the same response.  If not removed, the
+        duplicate ``class`` definition will cause ``ast.parse`` errors.
+
+        **Algorithm:**
+
+        1. Split on ``class`` boundaries (keeping the keyword).
+        2. Deduplicate import lines in the preamble.
+        3. Collect class bodies in insertion order, overwriting on duplicate
+           class names so the *last* (most evolved) definition wins.
+        4. Reassemble preamble + unique class bodies.
+
+        Parameters
+        ----------
+        code : str
+            Python source code potentially containing duplicate classes.
+
+        Returns
+        -------
+        str
+            Deduplicated Python source code.
+        """
         # Split on class boundaries
         class_pattern = re.compile(r"(?=^class )", re.MULTILINE)
         parts = class_pattern.split(code)
@@ -182,7 +291,22 @@ class OllamaLLM(LLMClient):
 
     @staticmethod
     def _fallback_improve(code: str) -> str:
-        """Deterministic fallback when Ollama is unavailable."""
+        """Return the original code with a marker comment when Ollama is unavailable.
+
+        Adds a single-line comment at the top so the candidate has a
+        different hash from the base code in the fitness cache, avoiding
+        spurious cache hits.  Idempotent — the marker is only added once.
+
+        Parameters
+        ----------
+        code : str
+            Original Python source code.
+
+        Returns
+        -------
+        str
+            Code with marker prepended, or original code if marker is already present.
+        """
         marker = "# [ollama-fallback] minor optimisation applied"
         if marker in code:
             return code
