@@ -9,8 +9,8 @@ import requests
 from .base import LLMClient
 
 _DEFAULT_HOST = "http://localhost:11434"
-_DEFAULT_MODEL = "qwen2.5-coder:1.5b"
-_FALLBACK_MODEL = "qwen2.5:7b"
+_DEFAULT_MODEL = "qwen2.5-coder:7b"
+_FALLBACK_MODEL = "llama3.1:8b"
 
 _SYSTEM_PROMPT = (
     "You are an expert algorithmic code optimizer. "
@@ -33,7 +33,7 @@ class OllamaLLM(LLMClient):
         self,
         model: str = _DEFAULT_MODEL,
         host: str = _DEFAULT_HOST,
-        timeout: int = 120,
+        timeout: int = 300,
     ):
         self.model = model
         self.host = host.rstrip("/")
@@ -64,7 +64,9 @@ class OllamaLLM(LLMClient):
             "stream": False,
             "options": {
                 "temperature": 0.4,
-                "num_predict": 700,
+                "num_predict": 2048,
+                "num_ctx": 4096,
+                "num_gpu": 99,
             },
         }
 

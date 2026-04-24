@@ -10,9 +10,9 @@ project:
 llm:
   # LOCAL LLM via Ollama (no internet or API key required)
   # Make sure Ollama is running: `ollama serve`
-  # Pull a model first:  `ollama pull qwen2.5-coder:1.5b`
+  # Pull a model first:  `ollama pull qwen2.5-coder:7b`
   provider: ollama                     # Options: "ollama" | "local" | "openai" | "gemini"
-  model_name: qwen2.5-coder:1.5b       # For ollama: any pulled model name
+  model_name: qwen2.5-coder:7b         # For ollama: any pulled model name
   ollama_host: http://localhost:11434  # Ollama API endpoint
   # For remote providers set:
   #   provider: openai
@@ -27,7 +27,7 @@ pacman:
   base_agent_path: ./third_party/pacman/myAgents.py
   # Command template to run pacman for evaluation
   # {root} will be replaced with root_path, {agent} with agent name, {layout} with layout name
-  command: "python3 {root}/pacman.py -p {agent} -l {layout} -n 3 -q"
+  command: "python {root}/pacman.py -p {agent} -l {layout} -n 3 -q"
   layout: mediumClassic
 
 matrix:

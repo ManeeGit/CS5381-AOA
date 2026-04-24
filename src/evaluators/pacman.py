@@ -110,10 +110,10 @@ def _code_quality_score(code: str) -> float:
         ("getGhostPositions", 8),
         ("getScore", 5),
         ("getWalls", 6),
-        ("distanceTo\|manhattanDistance\|mazeDistance", 10),
-        ("BFS\|bfs\|breadth.first", 10),
-        ("A\\*\|astar\|a_star\|heuristic", 12),
-        ("Directions\\.NORTH\|Directions\\.SOUTH\|Directions\\.EAST\|Directions\\.WEST", 4),
+        (r"distanceTo|manhattanDistance|mazeDistance", 10),
+        (r"BFS|bfs|breadth.first", 10),
+        (r"A\*|astar|a_star|heuristic", 12),
+        (r"Directions\.NORTH|Directions\.SOUTH|Directions\.EAST|Directions\.WEST", 4),
     ]
     for pattern, pts in pacman_features:
         if re.search(pattern, code):
