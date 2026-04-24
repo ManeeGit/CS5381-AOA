@@ -28,7 +28,7 @@ pacman:
   # Command template to run pacman for evaluation
   # {root} will be replaced with root_path, {agent} with agent name, {layout} with layout name
   command: "python {root}/pacman.py -p {agent} -l {layout} -n 3 -q"
-  layout: mediumClassic
+  layout: mediumMaze
 
 matrix:
   enabled: true
