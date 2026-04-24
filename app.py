@@ -87,7 +87,7 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("###  Quick Guide")
     st.markdown("""
-    1. Select a problem (Pacman or Matrix)
+    1. Select a problem (Pacman, Matrix, or Pseudocode)
     2. Adjust hyperparameters
     3. Click 'Run Evolution'
     4. Analyze results & export

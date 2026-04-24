@@ -146,7 +146,7 @@ para("The loop is five steps - straight from AOA:")
 bullet("Initialise   - seed population from a base template")
 bullet("Evaluate     - run each candidate through the fitness function")
 bullet("Select       - greedy top-K elite selection")
-bullet("Mutate       - random perturbation, or LLM-guided rewrite for 20% of candidates")
+bullet("Mutate       - random perturbation, or LLM-guided rewrite for 45% of candidates")
 bullet("Cache & Repeat - vector cache avoids re-evaluating identical or near-identical code")
 doc.add_paragraph()
 para(

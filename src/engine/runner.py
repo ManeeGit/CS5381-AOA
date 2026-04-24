@@ -113,9 +113,21 @@ def run_experiment(config, problem: str, llm_override=None, on_generation=None) 
         if human_override:
             base_code = human_override
         else:
+            _BUBBLE_SORT_FALLBACK = (
+                "def sort(arr):\n"
+                "    # Bubble sort baseline\n"
+                "    n = len(arr)\n"
+                "    result = arr[:]\n"
+                "    for i in range(n):\n"
+                "        for j in range(0, n - i - 1):\n"
+                "            if result[j] > result[j + 1]:\n"
+                "                result[j], result[j + 1] = result[j + 1], result[j]\n"
+                "    return result\n"
+            )
             base_code = _load_base_code(
                 str(_PROJECT_ROOT / "data/templates/pseudocode_base.py"),
                 fallback=str(_PROJECT_ROOT / "data/templates/pseudocode_base.py"),
+                inline_fallback=_BUBBLE_SORT_FALLBACK,
             )
         # Configurable fitness weights from config (set by UI sliders)
         pc_cfg = PseudocodeConfig(
@@ -137,9 +149,21 @@ def run_experiment(config, problem: str, llm_override=None, on_generation=None) 
         if human_override:
             base_code = human_override
         else:
+            _MATMUL_FALLBACK = (
+                "def matmul3(a, b):\n"
+                "    res = [[0, 0, 0] for _ in range(3)]\n"
+                "    for i in range(3):\n"
+                "        for j in range(3):\n"
+                "            s = 0\n"
+                "            for k in range(3):\n"
+                "                s += a[i][k] * b[k][j]\n"
+                "            res[i][j] = s\n"
+                "    return res\n"
+            )
             base_code = _load_base_code(
                 str(_PROJECT_ROOT / "data/templates/matrix_base.py"),
                 fallback=str(_PROJECT_ROOT / "data/templates/matrix_base.py"),
+                inline_fallback=_MATMUL_FALLBACK,
             )
         evaluator = MatrixWrapper(
             MatrixEvaluator(
@@ -222,7 +246,7 @@ def plot_results(df: pd.DataFrame, out_path: str) -> None:
     plt.savefig(out_path)
 
 
-def _load_base_code(path: str, fallback: str) -> str:
+def _load_base_code(path: str, fallback: str, inline_fallback: str | None = None) -> str:
     import ast as _ast
 
     def _try_load(p: str) -> str | None:
@@ -237,8 +261,12 @@ def _load_base_code(path: str, fallback: str) -> str:
     if code is not None:
         return code
     # Primary path is missing or corrupt — use fallback
-    code = _try_load(fallback)
-    if code is not None:
-        return code
-    # Both corrupt — return a minimal safe agent
+    if fallback != path:
+        code = _try_load(fallback)
+        if code is not None:
+            return code
+    # Both corrupt — use caller-supplied inline default if provided
+    if inline_fallback is not None:
+        return inline_fallback
+    # Last resort: minimal safe Pacman agent (only correct for pacman problem)
     return "from game import Directions\nimport random\n\nclass MyAgent:\n    def getAction(self, state):\n        legal = state.getLegalActions()\n        return random.choice(legal) if legal else Directions.STOP\n"

@@ -36,7 +36,7 @@ All configs use the same `seed=42` for reproducibility."
 
 "We support **three problems**: Pacman (game-playing agent), Matrix multiplication (correctness + efficiency), and Pseudocode (sorting algorithm quality with four configurable fitness dimensions).
 
-We have **three evolution modes** — a no-evolution baseline, random mutation, and LLM-guided mutation using Ollama with `qwen2.5-coder`.
+We have **three evolution modes** — a no-evolution baseline, random mutation, and LLM-guided mutation using Ollama with `qwen2.5-coder` (45% of candidates per generation).
 
 And **three interfaces**: a live Streamlit UI, a FastAPI REST API, and a CLI profiler."
 

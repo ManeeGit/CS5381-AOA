@@ -126,7 +126,7 @@ class Evolver:
 
             while len(next_pop) < self.cfg.population_size:
                 parent = random.choice(elites)
-                if mode == "llm_guided" and random.random() < 0.45:
+                if mode == "llm_guided" and random.random() < 0.20:
                     new_code = self.llm.improve(self.prompt, parent.code)
                     meta = {
                         "op": "llm_improve",
