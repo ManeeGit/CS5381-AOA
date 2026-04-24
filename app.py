@@ -331,22 +331,87 @@ if run_btn:
     cfg.raw["project"]["top_k"] = top_k
     cfg.raw["project"]["mutation_rate"] = mutation_rate
 
+    # ── Live dashboard placeholders ───────────────────────────────────────────
+    st.markdown("---")
+    st.markdown("### ⚡ Live Evolution Dashboard")
+
+    # Competition metrics strip (4 required prints always visible)
+    comp_strip = st.empty()
+
+    # Real-time per-mode progress bars
+    _mode_labels = {"no_evolution": "Baseline", "random_mutation": "Random Mutation", "llm_guided": "LLM-Guided"}
+    live_bars = {}
+    live_metric_cols = {}
+    for _m, _label in _mode_labels.items():
+        _c1, _c2, _c3, _c4, _c5 = st.columns([2, 1, 1, 1, 1])
+        _c1.markdown(f"**{_label}**")
+        live_bars[_m] = _c1.progress(0, text="waiting…")
+        live_metric_cols[_m] = (_c2.empty(), _c3.empty(), _c4.empty(), _c5.empty())
+
+    live_chart_placeholder = st.empty()
+    status_placeholder = st.empty()
+
+    # Internal state for streaming chart
+    _stream_data: dict = {"no_evolution": [], "random_mutation": [], "llm_guided": []}
+    _stream_times: dict = {"no_evolution": [], "random_mutation": [], "llm_guided": []}
+    _gen_counter = {"no_evolution": 0, "random_mutation": 0, "llm_guided": 0}
+    _total_gens_seen: list = [generations]
+    _experiment_start = time.time()
+
+    def _on_generation(mode, gen, total_gens, best_fitness, metrics, elapsed):
+        _total_gens_seen[0] = total_gens
+        _stream_data[mode].append(best_fitness)
+        _stream_times[mode].append(gen)
+        _gen_counter[mode] = gen
+
+        # Update progress bar for this mode
+        pct = min(int(gen / max(total_gens, 1) * 100), 100)
+        live_bars[mode].progress(pct, text=f"Gen {gen}/{total_gens}  |  Fitness {best_fitness:.4f}")
+
+        # Update metric columns: gen / fitness / time / metric
+        c2, c3, c4, c5 = live_metric_cols[mode]
+        c2.metric("Gen", f"{gen}/{total_gens}")
+        c3.metric("Fitness", f"{best_fitness:.4f}")
+        c4.metric("Time(s)", f"{elapsed:.2f}")
+        first_metric = list(metrics.items())[0] if metrics else ("—", 0)
+        c5.metric(first_metric[0], f"{first_metric[1]:.3f}")
+
+        # Update live chart
+        chart_rows = []
+        for _mode, _vals in _stream_data.items():
+            for _g, _f in zip(_stream_times[_mode], _vals):
+                chart_rows.append({"generation": _g, "fitness": _f, "mode": _mode})
+        if chart_rows:
+            import pandas as _pd2
+            _cdf = _pd2.DataFrame(chart_rows)
+            live_chart_placeholder.line_chart(
+                _cdf.pivot_table(index="generation", columns="mode", values="fitness"),
+            )
+
+        # Update competition metrics strip
+        wall = time.time() - _experiment_start
+        comp_strip.markdown(
+            f"""
+<div style="background:#0d1117;border:1px solid #388bfd;border-radius:8px;
+            padding:0.7rem 1.2rem;display:flex;gap:2rem;flex-wrap:wrap;">
+  <span style="color:#e6edf3;">⏱ <b style="color:#58a6ff;">Running time:</b> {wall:.1f}s</span>
+  <span style="color:#e6edf3;">🔄 <b style="color:#58a6ff;">Generations:</b> {gen} / {total_gens}</span>
+  <span style="color:#e6edf3;">🏆 <b style="color:#58a6ff;">Best fitness:</b> {best_fitness:.4f}</span>
+  <span style="color:#e6edf3;">🧬 <b style="color:#58a6ff;">Mode:</b> {mode}</span>
+</div>""",
+            unsafe_allow_html=True,
+        )
+
     # Create progress tracking placeholder
     progress_placeholder = st.empty()
-    status_placeholder = st.empty()
-    
+
     with progress_placeholder.container():
-        st.markdown("###  Evolution in Progress")
         progress_bar = st.progress(0)
         status_text = st.empty()
-        
+
     start_time = time.time()
-    
-    # Simulate progress updates (in real implementation, this would be callbacks from evolve.py)
-    with status_placeholder.container():
-        st.info(" Initializing evolutionary algorithm...")
-        time.sleep(0.5)
-        
+    status_placeholder.info("⚙️ Initializing evolutionary algorithm…")
+
     try:
         # Build LLM instance from sidebar selection
         import os as _os2, io as _io_cap, contextlib as _ctx
@@ -366,44 +431,66 @@ if run_btn:
         _terminal_log = ""
         for _run_i in range(int(num_runs)):
             if num_runs > 1:
-                status_text.text(f" Run {_run_i+1}/{int(num_runs)} in progress…")
+                status_text.text(f"Run {_run_i+1}/{int(num_runs)} in progress…")
             _buf = _io_cap.StringIO()
             with _ctx.redirect_stdout(_buf):
-                _res = run_experiment(cfg, problem=problem, llm_override=_llm_instance)
+                _res = run_experiment(
+                    cfg, problem=problem,
+                    llm_override=_llm_instance,
+                    on_generation=_on_generation,
+                )
             _terminal_log += f"\n{'='*60}\n RUN {_run_i+1}\n{'='*60}\n" + _buf.getvalue()
             _rdf = history_to_df(_res)
             _rdf["run"] = _run_i + 1
             all_dfs.append(_rdf)
-            if _run_i == 0:
-                results = _res   # keep last result for code display
 
         elapsed_time = time.time() - start_time
         df_all = pd.concat(all_dfs, ignore_index=True)
-        # Use run-1 df as the primary df for single-run charts
-        results = _res  # always the last run for code display
-        
+        results = _res  # last run for code display
+
         progress_bar.progress(100)
-        status_text.text(" Evolution completed successfully!")
-        time.sleep(1)
+        status_text.text("✅ Evolution complete!")
         progress_placeholder.empty()
+        status_placeholder.empty()
         
-        # Success message with timing
+        # ── Final competition metrics strip ───────────────────────────────
+        _no_evo_final = df_all[df_all["mode"] == "no_evolution"]["fitness"].iloc[-1] if "no_evolution" in df_all["mode"].values else 0
+        _llm_final    = df_all[df_all["mode"] == "llm_guided"]["fitness"].iloc[-1] if "llm_guided" in df_all["mode"].values else 0
+        _rand_final   = df_all[df_all["mode"] == "random_mutation"]["fitness"].iloc[-1] if "random_mutation" in df_all["mode"].values else 0
+        _improvement  = ((_llm_final - _no_evo_final) / max(abs(_no_evo_final), 1e-6)) * 100
+
         st.markdown(f"""
-        <div style="background-color:#000000;border:1px solid #00ff88;border-radius:8px;padding:1.2rem;margin:1rem 0;">
-            <h4 style="color:#00ff88;margin:0 0 0.6rem 0;">&#9989; Evolution Completed Successfully</h4>
-            <p style="color:#ffffff;margin:0.3rem 0;">&#9201; <strong style="color:#aaffcc;">Total Time:</strong> {elapsed_time:.2f} seconds</p>
-            <p style="color:#ffffff;margin:0.3rem 0;">&#128260; <strong style="color:#aaffcc;">Generations:</strong> {generations}</p>
-            <p style="color:#ffffff;margin:0.3rem 0;">&#128101; <strong style="color:#aaffcc;">Population Size:</strong> {population}</p>
-            <p style="color:#ffffff;margin:0.3rem 0;">&#127918; <strong style="color:#aaffcc;">Problem:</strong> {problem.upper()}</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
+<div style="background:#0d1117;border:2px solid #00ff88;border-radius:10px;
+            padding:1rem 1.5rem;margin:1rem 0;">
+  <h4 style="color:#00ff88;margin:0 0 0.8rem 0;">✅ Evolution Complete — Competition Metrics</h4>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;">
+    <div style="background:#161b22;border-radius:8px;padding:0.7rem;text-align:center;">
+      <div style="color:#8b949e;font-size:0.75rem;">⏱ Total Time</div>
+      <div style="color:#58a6ff;font-size:1.4rem;font-weight:bold;">{elapsed_time:.2f}s</div>
+    </div>
+    <div style="background:#161b22;border-radius:8px;padding:0.7rem;text-align:center;">
+      <div style="color:#8b949e;font-size:0.75rem;">🔄 Generations</div>
+      <div style="color:#58a6ff;font-size:1.4rem;font-weight:bold;">{generations} × 3 modes</div>
+    </div>
+    <div style="background:#161b22;border-radius:8px;padding:0.7rem;text-align:center;">
+      <div style="color:#8b949e;font-size:0.75rem;">🏆 LLM Best Fitness</div>
+      <div style="color:#00ff88;font-size:1.4rem;font-weight:bold;">{_llm_final:.4f}</div>
+    </div>
+    <div style="background:#161b22;border-radius:8px;padding:0.7rem;text-align:center;">
+      <div style="color:#8b949e;font-size:0.75rem;">📈 vs Baseline</div>
+      <div style="color:{'#00ff88' if _improvement >= 0 else '#ff4444'};font-size:1.4rem;font-weight:bold;">
+        {'▲' if _improvement >= 0 else '▼'}{abs(_improvement):.1f}%
+      </div>
+    </div>
+  </div>
+</div>""", unsafe_allow_html=True)
+
         df = history_to_df(results)
         out_plot = str(_HERE / f"outputs/{problem}_fitness.png")
         plot_results(df, out_plot)
 
-        # Terminal output panel (satisfies competition print requirement)
-        with st.expander(" Terminal Output (Running Time · Generations · Score · Fitness)", expanded=True):
+        # Terminal output panel
+        with st.expander("🖥️ Terminal Output (Running Time · Generations · Score/Cost · Fitness per Iteration)", expanded=False):
             st.code(_terminal_log, language="text")
         
     except Exception as e:
@@ -414,29 +501,40 @@ if run_btn:
 
     with col2:
         st.markdown("###  Results & Analysis")
-        
+
         # Create tabs for different views
-        tab1, tab2, tab3, tab4 = st.tabs([" Overview", " Detailed Metrics", " Comparison", " Export"])
-        
+        tab1, tab2, tab3, tab4, tab5 = st.tabs([
+            "📈 Overview", "🔬 Detailed Metrics",
+            "🔀 Code Diff", "📊 Comparison", "💾 Export",
+        ])
+
         with tab1:
             # Fitness visualization with multiple series
             st.markdown("#### Fitness Evolution Across Generations")
             st.line_chart(df, x="generation", y="fitness", color="mode")
-            
-            # Show the saved plot
-            if Path(out_plot).exists():
-                st.image(out_plot, width='stretch')
-            
-            # Best scores comparison with styling
-            st.markdown("####  Best Scores by Mode")
+
+            # Baseline CSV overlay if available
+            _baseline_files = sorted((_HERE / "outputs").glob(f"{problem}_baseline_*.csv"), reverse=True)
+            if _baseline_files:
+                try:
+                    _bdf = pd.read_csv(_baseline_files[0])
+                    _baseline_val = _bdf["fitness"].iloc[-1]
+                    st.markdown(
+                        f"**📂 Baseline reference** (`{_baseline_files[0].name}`): "
+                        f"fitness = **{_baseline_val:.4f}** — "
+                        f"LLM improvement = **{((_llm_final - _baseline_val)/max(abs(_baseline_val),1e-6)*100):+.1f}%**"
+                    )
+                except Exception:
+                    pass
+
+            # Best scores comparison
+            st.markdown("#### 🏅 Best Scores by Mode")
             best_scores = (
                 df.sort_values(["mode", "generation"]).groupby("mode").tail(1)[
                     ["mode", "fitness"]
                 ].copy()
             )
             best_scores["fitness"] = best_scores["fitness"].round(4)
-            
-            # Add rank and color coding
             best_scores = best_scores.sort_values("fitness", ascending=False).reset_index(drop=True)
             best_scores["rank"] = range(1, len(best_scores) + 1)
             best_scores = best_scores[["rank", "mode", "fitness"]]
@@ -507,6 +605,38 @@ if run_btn:
                         st.dataframe(pd.DataFrame(mode_history), width='stretch', hide_index=True)
         
         with tab3:
+            # ── Code Diff: initial vs best evolved ───────────────────────
+            st.markdown("#### 🔀 Code Evolution Diff — Baseline vs Best Evolved")
+            import difflib as _difflib
+
+            _best_mode_for_diff = best_scores.iloc[0]["mode"] if len(best_scores) else "llm_guided"
+            _evolved_code = results[_best_mode_for_diff].best_code if _best_mode_for_diff in results else ""
+            _diff_lines = list(_difflib.unified_diff(
+                initial_code.splitlines(keepends=True),
+                _evolved_code.splitlines(keepends=True),
+                fromfile="initial_code (baseline)",
+                tofile=f"best_evolved ({_best_mode_for_diff})",
+                lineterm="",
+            ))
+            if _diff_lines:
+                _diff_text = "".join(_diff_lines)
+                st.code(_diff_text, language="diff")
+                _added   = sum(1 for l in _diff_lines if l.startswith("+") and not l.startswith("+++"))
+                _removed = sum(1 for l in _diff_lines if l.startswith("-") and not l.startswith("---"))
+                st.caption(f"Lines added: **{_added}** · Lines removed: **{_removed}** · Net: **{_added - _removed:+d}**")
+            else:
+                st.info("No code change detected — evolution converged to the initial code.")
+
+            st.markdown("#### 📋 Side-by-Side Code View")
+            _dcol1, _dcol2 = st.columns(2)
+            with _dcol1:
+                st.markdown("**Initial (baseline) code**")
+                st.code(initial_code, language="python")
+            with _dcol2:
+                st.markdown(f"**Best evolved code ({_best_mode_for_diff})**")
+                st.code(_evolved_code, language="python")
+
+        with tab4:
             # Comparison and operation explanations
             st.markdown("####  Operation Explanations")
             st.markdown("""
@@ -555,9 +685,9 @@ if run_btn:
                 plt.tight_layout()
                 st.pyplot(fig)
         
-        with tab4:
+        with tab5:
             # Export and download options
-            st.markdown("####  Export Results")
+            st.markdown("#### 💾 Export Results")
             
             col_exp1, col_exp2 = st.columns(2)
             

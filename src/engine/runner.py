@@ -36,7 +36,7 @@ def load_templates(path: str, pattern: str = "*.py") -> List[str]:
     return [f.read_text() for f in p.glob(pattern)]
 
 
-def run_experiment(config, problem: str, llm_override=None) -> Dict[str, RunResult]:
+def run_experiment(config, problem: str, llm_override=None, on_generation=None) -> Dict[str, RunResult]:
     # Initialize LLM based on config provider setting (or use override from UI)
     if llm_override is not None:
         llm = llm_override
@@ -125,7 +125,7 @@ def run_experiment(config, problem: str, llm_override=None) -> Dict[str, RunResu
     results: Dict[str, RunResult] = {}
     experiment_start = time.time()
     for mode in ["no_evolution", "random_mutation", "llm_guided"]:
-        history = evolver.run(base_code, mode=mode)
+        history = evolver.run(base_code, mode=mode, on_generation=on_generation)
         best = history[-1].best
         results[mode] = RunResult(mode=mode, history=history, best_code=best.code)
 

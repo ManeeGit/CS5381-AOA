@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import random
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import List
 
@@ -45,10 +46,15 @@ class Evolver:
         self.evaluator = evaluator
         self.prompt = prompt
 
-    def run(self, base_code: str, mode: str) -> List[GenerationResult]:
+    def run(
+        self,
+        base_code: str,
+        mode: str,
+        on_generation=None,   # optional callable(mode, gen, total_gens, best_fitness, metrics, elapsed)
+    ) -> List[GenerationResult]:
         population = self._init_population(base_code, mode=mode)
         history: List[GenerationResult] = []
-        
+
         # Adaptive mutation rate (starts high, decreases over time)
         initial_mutation_rate = self.cfg.mutation_rate
         best_fitness_ever = float('-inf')
@@ -61,9 +67,12 @@ class Evolver:
 
         for gen in range(self.cfg.generations):
             gen_start = time.time()
-            # Evaluate all candidates
-            for cand in population:
-                self._evaluate(cand)
+            # Evaluate all candidates in parallel (matrix/simulation evals are CPU-bound
+            # and independent; LLM evals share the GPU but Ollama queues them safely)
+            with ThreadPoolExecutor(max_workers=4) as pool:
+                futures = {pool.submit(self._evaluate, cand): cand for cand in population}
+                for future in as_completed(futures):
+                    future.result()  # propagate any exception
 
             population.sort(key=lambda c: c.fitness or 0.0, reverse=True)
             best = population[0]
@@ -80,6 +89,20 @@ class Evolver:
                 f" | {metrics_str}"
                 f" | Time: {gen_elapsed:.2f}s"
             )
+
+            # Fire UI callback for live streaming
+            if on_generation is not None:
+                try:
+                    on_generation(
+                        mode=mode,
+                        gen=gen + 1,
+                        total_gens=self.cfg.generations,
+                        best_fitness=best_fitness,
+                        metrics=best.metrics or {},
+                        elapsed=gen_elapsed,
+                    )
+                except Exception:
+                    pass  # never let a UI callback crash the evolution loop
             
             # Track improvement for adaptive behavior
             if best.fitness and best.fitness > best_fitness_ever:
@@ -103,7 +126,7 @@ class Evolver:
 
             while len(next_pop) < self.cfg.population_size:
                 parent = random.choice(elites)
-                if mode == "llm_guided" and random.random() < 0.6:
+                if mode == "llm_guided" and random.random() < 0.45:
                     new_code = self.llm.improve(self.prompt, parent.code)
                     meta = {
                         "op": "llm_improve",
