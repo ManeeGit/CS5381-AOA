@@ -31,8 +31,7 @@ W = Inches(13.33)
 H = Inches(7.5)
 
 _HERE = Path(__file__).parent
-OUT   = _HERE / "outputs" / "CS5381_AOA_Presentation.pptx"
-OUT.parent.mkdir(exist_ok=True)
+OUT   = _HERE / "CS5381_AOA_Presentation.pptx"
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
