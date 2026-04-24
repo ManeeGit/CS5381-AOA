@@ -3,7 +3,7 @@ from src.engine.runner import run_experiment, history_to_df, plot_results
 
 cfg = Config.load("./config.yaml")
 
-for problem in ["pacman", "matrix"]:
+for problem in ["pacman", "matrix", "pseudocode"]:
     results = run_experiment(cfg, problem=problem)
     df = history_to_df(results)
     plot_results(df, f"./outputs/{problem}_fitness.png")
