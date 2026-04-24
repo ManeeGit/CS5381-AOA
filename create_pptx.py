@@ -857,29 +857,105 @@ def slide_references(prs, num, total):
 
 def build():
     prs = new_prs()
-    TOTAL = 15
+    TOTAL = 6
 
     slide_title(prs, 1, TOTAL)
     slide_group(prs, 2, TOTAL)
-    slide_motivation(prs, 3, TOTAL)
-    slide_architecture(prs, 4, TOTAL)
-    slide_evolution_loop(prs, 5, TOTAL)
-    slide_three_modes(prs, 6, TOTAL)
-    slide_fitness_functions(prs, 7, TOTAL)
-    slide_mutations(prs, 8, TOTAL)
-    slide_llm(prs, 9, TOTAL)
-    slide_caching(prs, 10, TOTAL)
-    slide_results_matrix(prs, 11, TOTAL)
-    slide_results_pacman(prs, 12, TOTAL)
-    slide_pseudocode(prs, 13, TOTAL)
-    slide_profiling(prs, 14, TOTAL)
-    slide_demo(prs, 15, TOTAL)
-    slide_conclusions(prs, 15, TOTAL)   # bonus slide; same number displayed
-    slide_references(prs, 15, TOTAL)
+
+    # ── Slide 3: What we built (problem + architecture in one) ────────────────
+    s = blank_slide(prs)
+    fill_bg(s)
+    add_title_bar(s, "What We Built", "AlphaEvolve-inspired evolutionary code optimizer")
+
+    bullet_box(s, [
+        ("3 Problems Supported", 0),
+        ("Pacman:     F = 0.6*score + 0.3*survival - 0.1*steps", 1),
+        ("Matrix:     F = 0.7*correct + 0.3*(1 - ops_ratio)", 1),
+        ("Pseudocode: F = w1*correct + w2*runtime + w3*length + w4*readability", 1),
+        ("3 Evolution Modes (same seed, same RNG=42)", 0),
+        ("no_evolution  — baseline only", 1),
+        ("random_mutation  — perturb / swap / template inject", 1),
+        ("llm_guided  — Ollama qwen2.5-coder drives 20% of candidates", 1),
+        ("3 Interfaces", 0),
+        ("Streamlit UI (live charts + code diff + export)", 1),
+        ("FastAPI REST  (POST /run, GET /result)", 1),
+        ("CLI + cProfile profiler", 1),
+    ], Inches(0.3), Inches(1.1), Inches(12.7), Inches(5.7), bg=C_BG2)
+
+    add_slide_number(s, 3, TOTAL)
+
+    # ── Slide 4: The evolution loop ────────────────────────────────────────────
+    slide_evolution_loop(prs, 4, TOTAL)
+
+    # ── Slide 5: Key results ───────────────────────────────────────────────────
+    s = blank_slide(prs)
+    fill_bg(s)
+    add_title_bar(s, "Results", "LLM-guided consistently beats random mutation")
+
+    headers = ["Mode", "Matrix Fitness", "Pacman Fitness", "vs Baseline"]
+    rows = [
+        ["no_evolution",    "0.99", "~58",  "—"],
+        ["random_mutation", "0.99", "~63",  "+8%"],
+        ["llm_guided",      "0.99", "~70+", "+20–45%"],
+    ]
+    col_w = [Inches(3.5), Inches(2.8), Inches(3.0), Inches(2.9)]
+    table_box(s, headers, rows,
+              Inches(0.4), Inches(1.15), Inches(12.5), Inches(2.2),
+              col_widths=col_w, font_size=Pt(14))
+
+    bullet_box(s, [
+        ("Matrix hits ceiling at 0.99 — template already near-optimal (ops=2, well under max_ops=60)", 0),
+        ("Pacman shows clear LLM benefit: higher score + survival, fewer wasted steps", 0),
+        ("Caching cuts repeat evaluation cost by 60-80% in generations 2+", 0),
+        ("Bonus: pseudocode evaluator — bubble sort evolves toward quicksort, fitness 0.855 -> 0.873", 0),
+    ], Inches(0.4), Inches(3.55), Inches(12.5), Inches(2.7), bg=C_BG2)
+
+    add_slide_number(s, 5, TOTAL)
+
+    # ── Slide 6: Demo + takeaways ──────────────────────────────────────────────
+    s = blank_slide(prs)
+    fill_bg(s)
+    add_title_bar(s, "Demo & Takeaways", "github.com/ManeeGit/CS5381-AOA")
+
+    bullet_box(s, [
+        ("Run the Demo", 0),
+        ("streamlit run app.py  ->  http://localhost:8501", 1),
+        ("Select problem, tune generations/population, click Run", 1),
+        ("Watch live fitness bars, code diff, download CSV/XLSX", 1),
+        ("Key Takeaways", 0),
+        ("LLM guidance is consistently better than random — not just luck", 1),
+        ("Greedy top-K selection is simple but effective", 1),
+        ("Modular design: swap evaluator/LLM without touching engine", 1),
+        ("Reproducibility: seed=42 applied to both random + numpy", 1),
+        ("AOA Connections", 0),
+        ("Greedy (top-K),  Randomised (mutations),  Approximation (fitness budget)", 1),
+    ], Inches(0.3), Inches(1.1), Inches(7.8), Inches(5.7), bg=C_BG2)
+
+    add_textbox(s, "Demo Video", Inches(8.2), Inches(1.1), Inches(4.8), Inches(0.5),
+                font_size=Pt(14), bold=True, color=C_ACCENT, align=PP_ALIGN.CENTER)
+    add_rect(s, Inches(8.2), Inches(1.6), Inches(4.8), Inches(2.8), fill_color=C_BG2,
+             line_color=C_ACCENT, line_width=Pt(0.75))
+    add_textbox(s, "youtu.be/b2GBt0VEED0",
+                Inches(8.2), Inches(2.8), Inches(4.8), Inches(0.6),
+                font_size=Pt(13), color=C_YELLOW, align=PP_ALIGN.CENTER)
+
+    add_textbox(s, "References",
+                Inches(8.2), Inches(4.6), Inches(4.8), Inches(0.4),
+                font_size=Pt(12), bold=True, color=C_ACCENT, align=PP_ALIGN.LEFT)
+    refs_short = (
+        "AlphaEvolve — Novikov et al., arXiv:2506.13131\n"
+        "Evolutionary Algorithms — Tamilselvi, IntechOpen 2022\n"
+        "UC Berkeley Pacman — ai.berkeley.edu\n"
+        "Ollama — ollama.com"
+    )
+    add_textbox(s, refs_short, Inches(8.2), Inches(5.05), Inches(4.8), Inches(1.8),
+                font_size=Pt(10.5), color=C_DIM, align=PP_ALIGN.LEFT)
+
+    add_slide_number(s, 6, TOTAL)
 
     prs.save(str(OUT))
-    print(f"[✓] Saved:  {OUT}")
-    print(f"    Slides: {len(prs.slides)}")
+    print(f"[OK] Saved:  {OUT}")
+    print(f"    Slides: {len(prs.slides)}  (~20s each = ~2 min)")
 
 
 if __name__ == "__main__":
