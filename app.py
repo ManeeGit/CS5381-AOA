@@ -430,6 +430,18 @@ if run_btn:
         for _mode, _vals in _stream_data.items():
             for _g, _f in zip(_stream_times[_mode], _vals):
                 chart_rows.append({"generation": _g, "fitness": _f, "mode": _mode})
+        # Pad no_evolution as a flat reference line through the current generation
+        # so it stays visible while other modes are still running
+        if "no_evolution" in _stream_data and _stream_data["no_evolution"]:
+            _no_evo_f = _stream_data["no_evolution"][-1]
+            _no_evo_gens_seen = set(_stream_times["no_evolution"])
+            _cur_max_gen = max(
+                (max(_stream_times[_m]) for _m in _stream_data if _stream_times[_m]),
+                default=1,
+            )
+            for _pad_g in range(2, _cur_max_gen + 1):
+                if _pad_g not in _no_evo_gens_seen:
+                    chart_rows.append({"generation": _pad_g, "fitness": _no_evo_f, "mode": "no_evolution"})
         if chart_rows:
             import pandas as _pd2
             _cdf = _pd2.DataFrame(chart_rows)
@@ -644,7 +656,7 @@ if run_btn:
                             best_fitness = gen.best.fitness if gen.best.fitness else 0.0
                             improvement = best_fitness - prev_best_fitness if mode_history else 0.0
                             mode_history.append({
-                                "Generation": gen.generation,
+                                "Generation": gen.generation + 1,  # 1-indexed
                                 "Best Fitness": f"{best_fitness:.4f}",
                                 "Avg Fitness": f"{avg_fitness:.4f}",
                                 "Population": len(gen.candidates),

@@ -224,19 +224,44 @@ def history_to_df(results: Dict[str, RunResult]) -> pd.DataFrame:
             rows.append(
                 {
                     "mode": mode,
-                    "generation": gen.generation,
+                    "generation": gen.generation + 1,   # 1-indexed for display
                     "fitness": best.fitness,
                     **{f"metric_{k}": v for k, v in best.metrics.items()},
                 }
             )
-    return pd.DataFrame(rows)
+    df = pd.DataFrame(rows)
+    if df.empty:
+        return df
+
+    # no_evolution breaks after gen 1 (performance optimisation in evolve.py).
+    # Pad it as a flat reference line across all generations so the chart is
+    # readable — same fitness repeated, clearly showing no improvement.
+    max_gen = int(df["generation"].max())
+    no_evo_rows = df[df["mode"] == "no_evolution"]
+    if not no_evo_rows.empty and max_gen > int(no_evo_rows["generation"].max()):
+        template = no_evo_rows.iloc[-1].to_dict()
+        extra = [
+            {**template, "generation": g}
+            for g in range(int(no_evo_rows["generation"].max()) + 1, max_gen + 1)
+        ]
+        df = pd.concat([df, pd.DataFrame(extra)], ignore_index=True)
+
+    return df.sort_values(["mode", "generation"]).reset_index(drop=True)
 
 
 def plot_results(df: pd.DataFrame, out_path: str) -> None:
     plt.figure(figsize=(8, 4))
+    # Ensure no_evolution appears as a flat reference line across all gens
+    max_gen = int(df["generation"].max()) if not df.empty else 1
     for mode in df["mode"].unique():
-        subset = df[df["mode"] == mode]
-        plt.plot(subset["generation"], subset["fitness"], label=mode)
+        subset = df[df["mode"] == mode].sort_values("generation")
+        if mode == "no_evolution" and len(subset) == 1:
+            # Extend to full x-range as a flat dashed reference
+            gen_vals = [1, max_gen]
+            fit_vals = [subset.iloc[0]["fitness"]] * 2
+            plt.plot(gen_vals, fit_vals, label=mode, linestyle="--", linewidth=1.5)
+        else:
+            plt.plot(subset["generation"], subset["fitness"], label=mode)
     plt.title("Fitness across generations")
     plt.xlabel("Generation")
     plt.ylabel("Fitness")
