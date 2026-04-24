@@ -892,22 +892,22 @@ def build():
     fill_bg(s)
     add_title_bar(s, "Results", "LLM-guided consistently beats random mutation")
 
-    headers = ["Mode", "Matrix Fitness", "Pacman Fitness", "vs Baseline"]
+    headers = ["Mode", "Matrix", "Pseudocode", "Pacman", "vs Baseline"]
     rows = [
-        ["no_evolution",    "0.99", "~58",  "—"],
-        ["random_mutation", "0.99", "~63",  "+8%"],
-        ["llm_guided",      "0.99", "~70+", "+20–45%"],
+        ["no_evolution",    "0.990", "0.855", "29.1",  "—"],
+        ["random_mutation", "0.990", "0.922", "30.5",  "+5–8%"],
+        ["llm_guided",      "0.995", "0.910", "76.8",  "+164%"],
     ]
-    col_w = [Inches(3.5), Inches(2.8), Inches(3.0), Inches(2.9)]
+    col_w = [Inches(3.0), Inches(2.2), Inches(2.5), Inches(2.2), Inches(2.6)]
     table_box(s, headers, rows,
               Inches(0.4), Inches(1.15), Inches(12.5), Inches(2.2),
               col_widths=col_w, font_size=Pt(14))
 
     bullet_box(s, [
-        ("Matrix hits ceiling at 0.99 — template already near-optimal (ops=2, well under max_ops=60)", 0),
-        ("Pacman shows clear LLM benefit: higher score + survival, fewer wasted steps", 0),
-        ("Caching cuts repeat evaluation cost by 60-80% in generations 2+", 0),
-        ("Bonus: pseudocode evaluator — bubble sort evolves toward quicksort, fitness 0.855 -> 0.873", 0),
+        ("Matrix hits 0.99 ceiling — template already near-optimal for 3×3 multiply", 0),
+        ("Pseudocode: random mutation jumps to 0.922 (compact template); LLM reaches 0.910", 0),
+        ("Pacman: LLM-guided +164% over baseline — rewrites entire agent decision logic", 0),
+        ("Caching cuts repeat evaluation cost by 60–80% in generations 2+", 0),
     ], Inches(0.4), Inches(3.55), Inches(12.5), Inches(2.7), bg=C_BG2)
 
     add_slide_number(s, 5, TOTAL)

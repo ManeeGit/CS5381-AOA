@@ -67,17 +67,19 @@ This repeats for however many generations you configure. Greedy, randomised, and
 
 > **Speaker: whoever ran the experiments**
 
-"Matrix fitness hits near-ceiling at 0.99 across all modes — the seed template was already close to optimal for a 2×2 problem.
+"Matrix fitness hits near-ceiling at 0.99 across all modes — the seed template was already close to optimal.
 
-Pacman is where we see the real difference: LLM-guided mutation reaches **+20–45% above baseline**, random mutation gives +8%. That's not luck — it's consistent across runs.
+Pseudocode shows clear differentiation: random mutation found a compact algorithm and jumped to **0.922** in the first generation. LLM-guided reached **0.910**.
 
-The caching system cut repeat evaluation cost by **60–80%** in later generations. And the pseudocode evaluator showed bubble sort evolving toward quicksort-like patterns, fitness going from 0.855 to 0.873."
+Pacman is where we see the biggest impact: LLM-guided mutation reached **76.8** — a **+164% improvement** over the no-evolution baseline of 29.1. Random mutation gave 30.5 (+5%). That's not luck — it's the LLM rewriting entire agent logic.
 
-| Mode | Matrix Fitness | Pacman Fitness | vs Baseline |
-|---|---|---|---|
-| no_evolution | 0.99 | ~58 | — |
-| random_mutation | 0.99 | ~63 | +8% |
-| llm_guided | 0.99 | ~70+ | +20–45% |
+The caching system cut repeat evaluation cost by **60–80%** in later generations."
+
+| Mode | Matrix | Pseudocode | Pacman | vs Baseline |
+|---|---|---|---|---|
+| no_evolution | 0.990 | 0.855 | 29.1 | — |
+| random_mutation | 0.990 | **0.922** | 30.5 | +5–8% |
+| llm_guided | **0.995** | 0.910 | **76.8** | **+164%** |
 
 ---
 

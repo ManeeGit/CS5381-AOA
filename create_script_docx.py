@@ -159,25 +159,27 @@ doc.add_paragraph()
 heading1("Slide 5 - Results  (~25 seconds)")
 speaker("whoever ran the experiments")
 para(
-    "Matrix fitness hits near-ceiling at 0.99 across all modes - the seed template was "
-    "already close to optimal for a 2x2 problem."
+    "Matrix fitness near-ceiling at 0.99 across all modes - seed template already optimal."
 )
 para(
-    "Pacman is where we see the real difference: LLM-guided mutation reaches +20-45% above "
-    "baseline, random mutation gives +8%. That is not luck - it is consistent across runs."
+    "Pseudocode shows clear differentiation: random mutation found a compact algorithm and "
+    "jumped to 0.922 in the first generation. LLM-guided reached 0.910."
 )
 para(
-    "The caching system cut repeat evaluation cost by 60-80% in later generations. And the "
-    "pseudocode evaluator showed bubble sort evolving toward quicksort-like patterns, "
-    "fitness going from 0.855 to 0.873."
+    "Pacman is where we see the biggest impact: LLM-guided mutation reached 76.8 - "
+    "a +164% improvement over the no-evolution baseline of 29.1. "
+    "Random mutation gave 30.5 (+5%). That is not luck - the LLM rewrote entire agent logic."
+)
+para(
+    "The caching system cut repeat evaluation cost by 60-80% in later generations."
 )
 doc.add_paragraph()
 add_table(
-    ["Mode", "Matrix Fitness", "Pacman Fitness", "vs Baseline"],
+    ["Mode", "Matrix", "Pseudocode", "Pacman", "vs Baseline"],
     [
-        ["no_evolution",    "0.99", "~58",  "-"],
-        ["random_mutation", "0.99", "~63",  "+8%"],
-        ["llm_guided",      "0.99", "~70+", "+20-45%"],
+        ["no_evolution",    "0.990", "0.855", "29.1", "-"],
+        ["random_mutation", "0.990", "0.922", "30.5", "+5-8%"],
+        ["llm_guided",      "0.995", "0.910", "76.8", "+164%"],
     ],
 )
 doc.add_paragraph()
