@@ -9,6 +9,7 @@ from typing import Dict, List
 _HERE = Path(__file__).parent          # Project/src/engine/
 _PROJECT_ROOT = _HERE.parent.parent    # Project/
 
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
@@ -37,6 +38,12 @@ def load_templates(path: str, pattern: str = "*.py") -> List[str]:
 
 
 def run_experiment(config, problem: str, llm_override=None, on_generation=None) -> Dict[str, RunResult]:
+    # Apply reproducibility seed from config
+    import random as _random
+    _seed = config.get("project", "seed", default=42)
+    _random.seed(_seed)
+    np.random.seed(_seed)
+
     # Initialize LLM based on config provider setting (or use override from UI)
     if llm_override is not None:
         llm = llm_override

@@ -152,8 +152,8 @@ pacman:
 
 matrix:
   size: 3                    # Matrix dimension (3x3)
-  samples: 10                # Number of test cases
-  max_ops: 50                # Maximum allowed operations
+  samples: 5                 # Number of test cases
+  max_ops: 60                # Maximum allowed operations
 ```
 
 ### Fitness Cache Format (JSONL)
@@ -483,7 +483,7 @@ python run_experiment.py
 ### LLM-Guided Mode
 - **Purpose**: Leverage AI for intelligent code improvement
 - **Behavior**: Uses language model to refine code based on fitness goals
-- **Mechanism**: 60% LLM improvement, remainder random mutation/cloning
+- **Mechanism**: 45% LLM improvement, remainder random mutation/cloning
 - **Use Case**: Achieve best results through human-like reasoning
 
 ##  Interpreting Results

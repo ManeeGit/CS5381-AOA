@@ -137,10 +137,16 @@ class VectorCache:
         return None
 
     def set(self, code: str, fitness: float, metrics: Dict[str, float]) -> None:
+        from datetime import datetime, timezone
         h = self._hash(code)
         if h in self._index:
             return  # already stored
-        rec = {"hash": h, "fitness": fitness, "metrics": metrics}
+        rec = {
+            "hash": h,
+            "fitness": fitness,
+            "metrics": metrics,
+            "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"),
+        }
         self._index[h] = rec
         self._codes.append(code)
         self._dirty = True
