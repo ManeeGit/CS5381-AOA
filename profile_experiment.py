@@ -102,7 +102,7 @@ def demo_method2(problem: str, save: bool = False):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="cProfile demo for CS5381 AOA")
     parser.add_argument("problem", nargs="?", default="matrix",
-                        choices=["matrix", "pacman"],
+                        choices=["matrix", "pacman", "pseudocode"],
                         help="Which problem to profile (default: matrix)")
     parser.add_argument("--method", type=int, default=2, choices=[1, 2],
                         help="Which cProfile method to demonstrate (default: 2)")

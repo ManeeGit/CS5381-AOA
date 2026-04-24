@@ -36,5 +36,16 @@ matrix:
   samples: 5
   max_ops: 60
 
+pseudocode:
+  enabled: true
+  # Fitness weight for each dimension — must sum to 1.0 (UI auto-normalises)
+  w_correctness: 0.4    # Fraction of test cases sorted correctly
+  w_runtime: 0.2        # Inverse execution time (faster = higher score)
+  w_length: 0.2         # Code conciseness (shorter = higher score)
+  w_readability: 0.2    # Comment density + identifier quality
+  samples: 10           # Random test-case arrays per evaluation
+  max_length: 800       # Characters threshold for length scoring
+  max_time_s: 1.0       # Seconds cap for runtime scoring
+
 ui:
   mode: streamlit

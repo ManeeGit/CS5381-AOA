@@ -48,88 +48,166 @@ This project implements an AlphaEvolve-inspired evolutionary algorithm system th
 ### Supported Problems
 
 1. **Pacman Agent Optimization**: Evolves game-playing agents to maximize score, survival time, and efficiency
-   - Fitness = 0.6 × score + 0.3 × survival_time - 0.1 × steps
+   - Fitness = 0.6 × score + 0.3 × survival_time − 0.1 × steps
    
-2. **3x3 Matrix Multiplication**: Optimizes code for correctness and computational efficiency
-   - Fitness = 0.7 × correctness + 0.3 × (1 - normalized_ops)
+2. **3×3 Matrix Multiplication**: Optimizes code for correctness and computational efficiency
+   - Fitness = 0.7 × correctness + 0.3 × (1 − normalized_ops)
+
+3. **Pseudocode / Algorithm Description** *(Bonus)*: Evolves sorting algorithm implementations across 4 dimensions
+   - Fitness = w₁×correctness + w₂×runtime + w₃×length + w₄×readability  (Σwᵢ = 1)
+   - Weights are configurable live via UI sliders before each run
 
 ##  System Architecture
 
 ### High-Level Architecture Diagram
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         User Interface Layer                         │
-│  ┌──────────────────┐  ┌──────────────┐  ┌────────────────────────┐ │
-│  │  Streamlit UI    │  │  FastAPI     │  │  Command Line         │ │
-│  │  (app.py)        │  │  (api.py)    │  │  (run_experiment.py)  │ │
-│  └──────────────────┘  └──────────────┘  └────────────────────────┘ │
-└──────────────────────────┬──────────────────────────────────────────┘
-                           │
-┌──────────────────────────▼──────────────────────────────────────────┐
-│                      Evolution Engine (src/engine)                   │
-│  ┌────────────────────────────────────────────────────────────────┐ │
-│  │  runner.py - Orchestrates experiments                          │ │
-│  │    • Load configuration and templates                          │ │
-│  │    • Initialize evaluators and cache                           │ │
-│  │    • Run evolution for each mode                               │ │
-│  └────────────────────────────────────────────────────────────────┘ │
-│  ┌────────────────────────────────────────────────────────────────┐ │
-│  │  evolve.py - Core evolutionary algorithm                       │ │
-│  │    • Initialize population from base code                      │ │
-│  │    • Evaluate fitness (with caching)                           │ │
-│  │    • Select top-K elites                                       │ │
-│  │    • Generate new candidates via mutation/LLM                  │ │
-│  │    • Iterate for n generations                                 │ │
-│  └────────────────────────────────────────────────────────────────┘ │
-│  ┌────────────────────────────────────────────────────────────────┐ │
-│  │  mutations.py - Mutation operators                             │ │
-│  │    • random_perturb_parameters()                               │ │
-│  │    • swap_two_lines()                                          │ │
-│  │    • replace_fragment(templates)                               │ │
-│  └────────────────────────────────────────────────────────────────┘ │
-└──────────────┬────────────────────────────┬────────────┬───────────┘
-               │                            │            │
-    ┌──────────▼────────┐      ┌───────────▼──────┐    │
-    │   LLM Module      │      │   Evaluators     │    │
-    │   (src/llm)       │      │  (src/evaluators)│    │
-    ├───────────────────┤      ├──────────────────┤    │
-    │ • base.py         │      │ • pacman.py      │    │
-    │   (Abstract)      │      │ • matrix.py      │    │
-    │ • local.py        │      │ • wrappers.py    │    │
-    │   (llama.cpp)     │      │                  │    │
-    │ • remote.py       │      │ Fitness:         │    │
-    │   (OpenAI/Gemini) │      │ F = Σ wᵢ·mᵢ      │    │
-    └───────────────────┘      └──────────────────┘    │
-                                                        │
-                               ┌────────────────────────▼─────────┐
-                               │  Fitness Cache (src/cache)       │
-                               │  • SHA-256 based deduplication   │
-                               │  • JSONL storage                 │
-                               │  • Persistent across runs        │
+╔═════════════════════════════════════════════════════════════════════╗
+║                         USER INTERFACE LAYER                        ║
+║  ┌───────────────────┐  ┌───────────────┐  ┌─────────────────────┐ ║
+║  │  Streamlit UI     │  │  FastAPI      │  │  CLI / Batch        │ ║
+║  │  app.py           │  │  api.py       │  │  run_experiment.py  │ ║
+║  │  • Config sliders │  │  POST /run    │  │  profile_exp.py     │ ║
+║  │  • Live charts    │  │  GET  /status │  │  cProfile output    │ ║
+║  │  • Code diff view │  │  GET  /result │  │                     │ ║
+║  └────────┬──────────┘  └──────┬────────┘  └──────────┬──────────┘ ║
+╚═══════════╪════════════════════╪═══════════════════════╪═════════════╝
+            └────────────────────┼───────────────────────┘
+                                 │ run_experiment(cfg, problem)
+╔════════════════════════════════▼════════════════════════════════════╗
+║                    EXPERIMENT ORCHESTRATION                         ║
+║  src/engine/runner.py                                               ║
+║  ┌──────────────────────────────────────────────────────────────┐  ║
+║  │  1. random.seed(42) + np.random.seed(42)  ← reproducibility  │  ║
+║  │  2. Load templates from data/templates/                       │  ║
+║  │  3. Build evaluator + cache for selected problem              │  ║
+║  │  4. For each mode in [no_evolution, random_mutation,          │  ║
+║  │                        llm_guided]:                           │  ║
+║  │       call evolve(base_code, evaluator, llm, generations)     │  ║
+║  │  5. Persist results to outputs/*.csv + *.xlsx                 │  ║
+║  └──────────────────────────────────────────────────────────────┘  ║
+╚════════════════════════════════╤════════════════════════════════════╝
+                                 │
+              ┌──────────────────▼──────────────────┐
+              │      EVOLUTION CORE  evolve.py       │
+              │  ┌────────────────────────────────┐  │
+              │  │ for gen in range(generations): │  │
+              │  │   evaluate population          │  │
+              │  │   sort by fitness descending   │  │
+              │  │   keep top_k elites            │  │
+              │  │   fill rest via mutations/LLM  │  │
+              │  │   yield GenerationResult       │  │
+              │  └────────────────────────────────┘  │
+              └──────┬────────────────────┬──────────┘
+                     │                    │
+     ┌───────────────▼──┐      ┌──────────▼──────────────────────┐
+     │  MUTATION ENGINE │      │  FITNESS EVALUATORS             │
+     │  mutations.py    │      │  src/evaluators/                │
+     ├──────────────────┤      ├─────────────────────────────────┤
+     │ random_perturb() │      │ pacman.py  — game simulator     │
+     │ swap_two_lines() │      │   F = 0.6·score + 0.3·survival  │
+     │ replace_frag()   │      │       − 0.1·steps               │
+     │ llm_improve()    │      │                                 │
+     └──────────────────┘      │ matrix.py  — 3×3 mult cost      │
+              │                │   F = 0.7·correct + 0.3·(1−ops) │
+     ┌────────▼─────────┐      │                                 │
+     │  LLM PROVIDERS   │      │ pseudocode.py — sort algorithm  │
+     │  src/llm/        │      │   F = w₁·correctness            │
+     ├──────────────────┤      │     + w₂·runtime                │
+     │ ollama_client.py │      │     + w₃·length                 │
+     │   qwen2.5-coder  │      │     + w₄·readability  (Σwᵢ=1)  │
+     │ remote.py        │      │                                 │
+     │   OpenAI/Gemini  │      │ wrappers.py — uniform interface │
+     │ local.py         │      │   MatrixWrapper / PacmanWrapper │
+     │   llama.cpp      │      │   PseudocodeWrapper             │
+     └──────────────────┘      └──────────────┬──────────────────┘
+                                              │
+                               ┌──────────────▼───────────────────┐
+                               │  FITNESS CACHE  src/cache/       │
+                               │  cache.py  +  vector_cache.py    │
+                               ├──────────────────────────────────┤
+                               │ • SHA-256 hash for dedup         │
+                               │ • JSONL append-only store        │
+                               │ • Cosine-similarity vector cache │
+                               │   (reuses score for near-dupe)   │
+                               │ • Timestamp per entry (ISO 8601) │
                                └──────────────────────────────────┘
 ```
 
 ### Component Descriptions
 
-| Component | Description | Key Responsibilities |
-|-----------|-------------|----------------------|
-| **User Interface** | Streamlit web app, FastAPI REST API, CLI | Parameter configuration, result visualization, user interaction |
-| **Evolution Engine** | Core evolutionary algorithm implementation | Population management, selection, generation loop |
-| **Mutation Operators** | Code transformation functions | Random perturbation, line swaps, template replacement |
-| **LLM Module** | Language model integration | Code improvement via local (llama.cpp) or remote (GPT/Gemini) LLMs |
-| **Evaluators** | Fitness computation | Execute code, measure metrics, compute fitness scores |
-| **Fitness Cache** | Persistent cache system | Avoid redundant evaluations, SHA-256 hashing |
-| **Templates** | Code fragment library | Predefined code patterns for template replacement |
+| Layer | Component | File(s) | Key Responsibility |
+|-------|-----------|---------|-------------------|
+| **UI** | Streamlit Web App | `app.py` | Live charts, config sliders, code diff, export |
+| **UI** | REST API | `api.py` | POST `/run`, GET `/status`, GET `/result` |
+| **UI** | CLI / Profiler | `run_experiment.py`, `profile_experiment.py` | Batch runs, cProfile analysis |
+| **Orchestration** | Experiment Runner | `src/engine/runner.py` | Seeds RNG, dispatches per-mode evolution, saves CSV/XLSX |
+| **Core** | Evolution Loop | `src/engine/evolve.py` | Selection (top-K), population breeding, generation results |
+| **Core** | Mutation Operators | `src/engine/mutations.py` | `random_perturb`, `swap_lines`, `replace_fragment` |
+| **Core** | Data Types | `src/engine/types.py` | `Candidate`, `GenerationResult` dataclasses |
+| **Evaluation** | Matrix Evaluator | `src/evaluators/matrix.py` | Correctness + operation-count scoring |
+| **Evaluation** | Pacman Evaluator | `src/evaluators/pacman.py` | Berkeley simulator wrapper, score/survival/steps |
+| **Evaluation** | Pseudocode Evaluator | `src/evaluators/pseudocode.py` | 4-dim configurable fitness (bonus) |
+| **Evaluation** | Wrappers | `src/evaluators/wrappers.py` | Uniform `evaluate(code)` interface |
+| **LLM** | Ollama Client | `src/llm/ollama_client.py` | HTTP calls to `localhost:11434` |
+| **LLM** | Remote LLM | `src/llm/remote.py` | OpenAI / Gemini REST API calls |
+| **LLM** | Local LLM | `src/llm/local.py` | llama.cpp GGUF model inference |
+| **Cache** | Fitness Cache | `src/cache/cache.py` | SHA-256 keyed JSONL cache |
+| **Cache** | Vector Cache | `src/cache/vector_cache.py` | Cosine similarity near-duplicate detection |
+| **Config** | Config Manager | `src/utils/config.py` | YAML parsing, typed `get()`, `raw[]` access |
 
-### Data Flow
+### Data Flow Through the System
 
-1. **Initialization**: Load config → Initialize population from base code
-2. **Evaluation**: Execute code → Measure metrics → Compute fitness → Cache result
-3. **Selection**: Sort by fitness → Keep top-K candidates
-4. **Breeding**: Clone/mutate/LLM-improve elite candidates → Create new population
-5. **Iteration**: Repeat steps 2-4 for n generations
-6. **Output**: Generate plots, CSV files, display results
+```
+  User selects problem + hyperparameters
+          │
+          ▼
+  runner.py sets RNG seeds (42) → loads base code template
+          │
+          ▼
+  for each mode [no_evolution → random_mutation → llm_guided]:
+          │
+          ├── Initialise population [base_code × population_size]
+          │
+          └── for each generation:
+                │
+                ├── For each candidate:
+                │     ├── hash code (SHA-256)
+                │     ├── cache hit? → reuse fitness
+                │     └── cache miss? → run evaluator → store in JSONL
+                │
+                ├── Sort candidates by fitness (descending)
+                ├── Keep top_k elites unchanged
+                │
+                └── Fill remaining slots:
+                      ├── 40% clone (exact copy of elite)
+                      ├── 40% random mutate (perturb/swap/template)
+                      └── 20% LLM improve (Ollama / OpenAI prompt)
+          │
+          ▼
+  Persist: outputs/*.csv + *.xlsx + fitness_cache.jsonl
+  Display: Streamlit charts / API JSON / CLI table
+```
+
+### Evolution Mode Comparison
+
+| Aspect | No Evolution | Random Mutation | LLM-Guided |
+|--------|-------------|-----------------|------------|
+| Mutations applied | None | ✅ Random | ✅ Random + LLM |
+| LLM calls | None | None | ~20% of candidates |
+| Baseline purpose | Establish F₀ | Measure random search | Show AI benefit |
+| Typical improvement | 0% | +15–25% | +40–55% |
+| Generations needed | 1 | 5–15 | 5–15 |
+
+### Fitness Function Design
+
+All fitness values are normalised to **[0, 1]** so modes are directly comparable.
+
+| Problem | Formula | Weights |
+|---------|---------|---------|
+| **Pacman** | F = w₁·score + w₂·survival − w₃·steps | 0.6 · 0.3 · 0.1 |
+| **Matrix** | F = w₁·correct + w₂·(1 − ops_ratio) | 0.7 · 0.3 |
+| **Pseudocode** | F = w₁·correct + w₂·runtime + w₃·length + w₄·read | configurable (UI sliders) |
 
 ##  Data Formats
 
@@ -204,9 +282,10 @@ Python code files stored in `data/templates/`:
    - **Template Replacement**: Injects code fragments from template library
    - **LLM-Guided Refinement**: Uses AI to improve code based on fitness goals
 
-3. **Dual Problem Support**:
+3. **Three Problem Domains**:
    - **Pacman Agent Optimization**: Evolves game-playing agents
-   - **3x3 Matrix Multiplication**: Optimizes computational efficiency
+   - **3×3 Matrix Multiplication**: Optimizes computational efficiency
+   - **Pseudocode / Algorithm Description** *(Bonus)*: Evolves sorting algorithms with configurable multi-dimensional fitness
 
 4. **Advanced Caching System**:
    - SHA-256 based code hashing for deduplication
@@ -514,39 +593,55 @@ Higher fitness indicates better performance.
 ##  Project Structure
 
 ```
-Project/
-├── app.py                    # Streamlit web interface
-├── api.py                    # FastAPI REST endpoint
+CS5381-AOA/
+├── app.py                    # Streamlit web interface (3 problems + live charts)
+├── api.py                    # FastAPI REST endpoint (POST /run, GET /result)
 ├── run_experiment.py         # Batch experiment runner
-├── config.yaml               # Configuration file
+├── profile_experiment.py     # cProfile demo (3 profiling methods)
+├── collect_student_data.py   # Per-student data collection script
+├── config.yaml               # Primary configuration file
+├── config.yaml.example       # Reference config with all options documented
 ├── requirements.txt          # Python dependencies
+│
 ├── data/
-│   ├── templates/            # Base code templates
-│   │   ├── matrix_base.py
-│   │   └── pacman_agent_template.py
-│   └── cache/               # Fitness cache storage (auto-generated)
+│   ├── templates/            # Seed code templates for evolution
+│   │   ├── matrix_base.py           # 3×3 naive matrix multiply
+│   │   ├── pacman_agent_template.py # Reflexive Pacman agent
+│   │   └── pseudocode_base.py       # Bubble sort (bonus evaluator seed)
+│   └── cache/
+│       └── fitness_cache.jsonl      # SHA-256 keyed evaluation cache
+│
 ├── src/
-│   ├── engine/              # Evolution engine
-│   │   ├── evolve.py       # Core evolution algorithm
-│   │   ├── mutations.py    # Mutation operators
-│   │   ├── runner.py       # Experiment orchestration
-│   │   └── types.py        # Data structures
-│   ├── evaluators/          # Fitness evaluation
-│   │   ├── matrix.py       # Matrix multiplication evaluator
-│   │   ├── pacman.py       # Pacman agent evaluator
-│   │   └── wrappers.py     # Evaluator wrappers
-│   ├── llm/                 # Language model integration
-│   │   ├── base.py         # Abstract LLM interface
-│   │   ├── local.py        # Local LLM (llama.cpp)
-│   │   └── remote.py       # Remote LLM (OpenAI/Gemini)
-│   ├── cache/               # Caching system
-│   │   └── cache.py        # Fitness cache implementation
-│   └── utils/               # Utilities
-│       └── config.py       # Configuration management
-├── outputs/                 # Generated plots and CSV files (auto-generated)
-├── logs/                    # Execution logs (auto-generated)
+│   ├── engine/
+│   │   ├── runner.py         # Experiment orchestration + RNG seeding
+│   │   ├── evolve.py         # Core evolutionary loop (selection + breeding)
+│   │   ├── mutations.py      # random_perturb / swap_lines / replace_fragment
+│   │   └── types.py          # Candidate, GenerationResult dataclasses
+│   ├── evaluators/
+│   │   ├── matrix.py         # Correctness + ops-count fitness
+│   │   ├── pacman.py         # Berkeley simulator wrapper
+│   │   ├── pseudocode.py     # 4-dim algorithm evaluator (bonus)
+│   │   └── wrappers.py       # Uniform evaluate() interface
+│   ├── llm/
+│   │   ├── base.py           # Abstract LLMClient interface
+│   │   ├── ollama_client.py  # Ollama HTTP client (qwen2.5-coder)
+│   │   ├── remote.py         # OpenAI / Gemini REST calls
+│   │   └── local.py          # llama.cpp GGUF inference
+│   ├── cache/
+│   │   ├── cache.py          # SHA-256 JSONL fitness cache
+│   │   └── vector_cache.py   # Cosine-similarity near-dup cache
+│   └── utils/
+│       └── config.py         # Typed YAML config with raw[] access
+│
+├── outputs/                  # Auto-generated CSV + XLSX results
+├── student_data/             # Per-student configs + analysis reports
+│   ├── Bhanu_Sankar_Ravi/
+│   ├── Maneesh_Malepati/
+│   ├── Lakshman_Pukhraj/
+│   ├── Johitha_Konduru/
+│   └── Demo_Student/
 └── third_party/
-    └── pacman/             # UC Berkeley Pacman project (optional)
+    └── pacman/               # UC Berkeley Pacman project files
 ```
 
 ##  LLM Integration
