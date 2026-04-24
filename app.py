@@ -106,15 +106,15 @@ with st.sidebar:
     )
 
     _default_models = {
-        "ollama": cfg.get("llm", "model_name", default="qwen2.5-coder:1.5b"),
+        "ollama": cfg.get("llm", "model_name", default="qwen2.5-coder:7b"),
         "openai": "gpt-3.5-turbo",
         "gemini": "gemini-1.5-flash",
         "local": "llama-cpp",
     }
     _llm_model = st.text_input(
         "Model Name",
-        value=_default_models.get(_llm_provider, cfg.get("llm", "model_name", default="qwen2.5-coder:1.5b")),
-        help="For Ollama: name of a pulled model (e.g. qwen2.5-coder:1.5b). For remote: API model ID.",
+        value=_default_models.get(_llm_provider, cfg.get("llm", "model_name", default="qwen2.5-coder:7b")),
+        help="For Ollama: name of a pulled model (e.g. qwen2.5-coder:7b). For remote: API model ID.",
     )
 
     if _llm_provider == "ollama":
@@ -202,6 +202,30 @@ else:
 with st.expander("View Initial Code", expanded=False):
     st.code(initial_code, language="python")
 
+# ── Human-in-the-Loop Code Editor ────────────────────────────────────────────
+st.markdown("###  Human-in-the-Loop Code Editor")
+st.markdown(
+    "Edit the base code below before running evolution. "
+    "Your code becomes the seed candidate for all three modes. "
+    "Leave unchanged to use the default template."
+)
+_hitl_code = st.text_area(
+    "Base Code (editable)",
+    value=initial_code,
+    height=280,
+    key=f"hitl_{problem}",
+    help="This code seeds the initial population. Modify it to test human-guided starting points.",
+)
+# Wire the human override into config so runner.py picks it up
+if _hitl_code.strip() and _hitl_code.strip() != initial_code.strip():
+    if problem not in cfg.raw:
+        cfg.raw[problem] = {}
+    cfg.raw[problem]["_human_code_override"] = _hitl_code
+else:
+    # Clear any stale override so the default template is used
+    if problem in cfg.raw:
+        cfg.raw[problem].pop("_human_code_override", None)
+
 st.markdown("---")
 
 col1, col2 = st.columns([1, 2])
@@ -236,7 +260,14 @@ with col1:
         value=cfg.get("project", "mutation_rate"),
         help="Probability of mutation vs. cloning. Higher values increase exploration."
     )
-    
+    num_runs = st.number_input(
+        "Number of Runs",
+        min_value=1,
+        max_value=5,
+        value=1,
+        help="Run the full experiment multiple times and compare observations (problem bank 3-2).",
+    )
+
     # Validation
     if top_k >= population:
         st.warning(" Top-K should be less than population size for effective evolution.")
@@ -318,7 +349,7 @@ if run_btn:
         
     try:
         # Build LLM instance from sidebar selection
-        import os as _os2
+        import os as _os2, io as _io_cap, contextlib as _ctx
         if _llm_provider == "ollama":
             from src.llm.ollama_client import OllamaLLM
             _llm_instance = OllamaLLM(model=_llm_model, host=_ollama_host)
@@ -330,8 +361,26 @@ if run_btn:
             _api_key = _os2.getenv("LLM_API_KEY") or _os2.getenv("OPENAI_API_KEY")
             _llm_instance = RemoteLLM(provider=_llm_provider, api_key=_api_key, model=_llm_model)
 
-        results = run_experiment(cfg, problem=problem, llm_override=_llm_instance)
+        # Run one or more times (for multiple-observation requirement)
+        all_dfs = []
+        _terminal_log = ""
+        for _run_i in range(int(num_runs)):
+            if num_runs > 1:
+                status_text.text(f" Run {_run_i+1}/{int(num_runs)} in progress…")
+            _buf = _io_cap.StringIO()
+            with _ctx.redirect_stdout(_buf):
+                _res = run_experiment(cfg, problem=problem, llm_override=_llm_instance)
+            _terminal_log += f"\n{'='*60}\n RUN {_run_i+1}\n{'='*60}\n" + _buf.getvalue()
+            _rdf = history_to_df(_res)
+            _rdf["run"] = _run_i + 1
+            all_dfs.append(_rdf)
+            if _run_i == 0:
+                results = _res   # keep last result for code display
+
         elapsed_time = time.time() - start_time
+        df_all = pd.concat(all_dfs, ignore_index=True)
+        # Use run-1 df as the primary df for single-run charts
+        results = _res  # always the last run for code display
         
         progress_bar.progress(100)
         status_text.text(" Evolution completed successfully!")
@@ -352,6 +401,10 @@ if run_btn:
         df = history_to_df(results)
         out_plot = str(_HERE / f"outputs/{problem}_fitness.png")
         plot_results(df, out_plot)
+
+        # Terminal output panel (satisfies competition print requirement)
+        with st.expander(" Terminal Output (Running Time · Generations · Score · Fitness)", expanded=True):
+            st.code(_terminal_log, language="text")
         
     except Exception as e:
         progress_placeholder.empty()
@@ -522,14 +575,29 @@ if run_btn:
                 )
                 
                 # Download CSV data
-                csv_data = df.to_csv(index=False)
+                csv_data = df_all.to_csv(index=False)
                 st.download_button(
                     label=" Download Results CSV",
                     data=csv_data,
                     file_name=f"results_{problem}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
                     mime="text/csv",
-                    help="Download complete results data"
+                    help="Download complete results data (all runs)"
                 )
+
+                # Excel download (grading requirement: Excel or .csv)
+                import io as _io_xl
+                try:
+                    _xl_buf = _io_xl.BytesIO()
+                    df_all.to_excel(_xl_buf, index=False, engine="openpyxl")
+                    st.download_button(
+                        label=" Download Results Excel",
+                        data=_xl_buf.getvalue(),
+                        file_name=f"results_{problem}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        help="Download complete results as Excel workbook",
+                    )
+                except Exception:
+                    st.caption("Excel export unavailable (install openpyxl)")
             
             with col_exp2:
                 # Download full report

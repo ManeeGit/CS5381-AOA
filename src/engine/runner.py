@@ -151,6 +151,14 @@ def _auto_save_results(results: Dict[str, RunResult], problem: str, total_time: 
     df.to_csv(out_path, index=False)
     print(f"[Runner] Results auto-saved to: {out_path}")
 
+    # Also save as Excel (grading requirement: Excel or .csv)
+    try:
+        xlsx_path = out_dir / f"{problem}_results_{timestamp}.xlsx"
+        df.to_excel(xlsx_path, index=False, engine="openpyxl")
+        print(f"[Runner] Results also saved to: {xlsx_path}")
+    except Exception:
+        pass  # openpyxl not installed; CSV is sufficient
+
 
 def history_to_df(results: Dict[str, RunResult]) -> pd.DataFrame:
     rows = []
