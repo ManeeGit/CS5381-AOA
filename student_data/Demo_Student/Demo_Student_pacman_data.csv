@@ -1,0 +1,12 @@
+mode,generation,fitness,metric_score,metric_steps,metric_survival,student_name,config_id,config_name,runtime_seconds,timestamp
+no_evolution,0,58.2,97.0,222.697476,194.0,Demo Student,5,Rapid Evolution (Few Generations),15.42,2026-02-13T10:59:34.199831
+random_mutation,0,56.423038,94.038396,221.110111,188.076792,Demo Student,5,Rapid Evolution (Few Generations),15.42,2026-02-13T10:59:34.199831
+random_mutation,1,62.398245,103.997074,220.527991,207.994149,Demo Student,5,Rapid Evolution (Few Generations),15.42,2026-02-13T10:59:34.199831
+random_mutation,2,60.380122,100.633537,191.151642,201.267075,Demo Student,5,Rapid Evolution (Few Generations),15.42,2026-02-13T10:59:34.199831
+random_mutation,3,58.072798,96.787996,204.61744,193.575992,Demo Student,5,Rapid Evolution (Few Generations),15.42,2026-02-13T10:59:34.199831
+random_mutation,4,61.747328,102.912213,168.482941,205.824427,Demo Student,5,Rapid Evolution (Few Generations),15.42,2026-02-13T10:59:34.199831
+llm_guided,0,58.184039,96.973399,244.705181,193.946798,Demo Student,5,Rapid Evolution (Few Generations),15.42,2026-02-13T10:59:34.199831
+llm_guided,1,59.934087,99.890145,220.555285,199.780291,Demo Student,5,Rapid Evolution (Few Generations),15.42,2026-02-13T10:59:34.199831
+llm_guided,2,63.202497,105.337496,185.014688,210.674991,Demo Student,5,Rapid Evolution (Few Generations),15.42,2026-02-13T10:59:34.199831
+llm_guided,3,60.416629,100.694381,199.605466,201.388763,Demo Student,5,Rapid Evolution (Few Generations),15.42,2026-02-13T10:59:34.199831
+llm_guided,4,63.087459,105.145765,202.827157,210.291529,Demo Student,5,Rapid Evolution (Few Generations),15.42,2026-02-13T10:59:34.199831

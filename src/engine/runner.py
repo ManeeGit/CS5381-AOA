@@ -16,7 +16,8 @@ import matplotlib.pyplot as plt
 from ..cache.cache import FitnessCache
 from ..evaluators.matrix import MatrixConfig, MatrixEvaluator
 from ..evaluators.pacman import PacmanConfig, PacmanEvaluator
-from ..evaluators.wrappers import MatrixWrapper, PacmanWrapper
+from ..evaluators.pseudocode import PseudocodeConfig, PseudocodeEvaluator
+from ..evaluators.wrappers import MatrixWrapper, PacmanWrapper, PseudocodeWrapper
 from ..llm.local import LocalLLM
 from ..llm.ollama_client import OllamaLLM
 from ..llm.remote import RemoteLLM
@@ -105,6 +106,30 @@ def run_experiment(config, problem: str, llm_override=None, on_generation=None) 
             agent_name="MyAgent",
         )
         prompt = "Improve the Pacman agent to maximize score and survival while minimizing steps."
+    elif problem == "pseudocode":
+        templates = load_templates(str(_PROJECT_ROOT / "data/templates"), pattern="pseudocode_*.py")
+        # Human-in-the-loop: allow UI to override base code
+        human_override = config.get("pseudocode", "_human_code_override", default=None)
+        if human_override:
+            base_code = human_override
+        else:
+            base_code = _load_base_code(
+                str(_PROJECT_ROOT / "data/templates/pseudocode_base.py"),
+                fallback=str(_PROJECT_ROOT / "data/templates/pseudocode_base.py"),
+            )
+        # Configurable fitness weights from config (set by UI sliders)
+        pc_cfg = PseudocodeConfig(
+            w_correctness=float(config.get("pseudocode", "w_correctness", default=0.4)),
+            w_runtime=float(config.get("pseudocode", "w_runtime", default=0.2)),
+            w_length=float(config.get("pseudocode", "w_length", default=0.2)),
+            w_readability=float(config.get("pseudocode", "w_readability", default=0.2)),
+            samples=int(config.get("pseudocode", "samples", default=10)),
+        )
+        evaluator = PseudocodeWrapper(PseudocodeEvaluator(pc_cfg))
+        prompt = (
+            "Improve the sorting algorithm to be more correct, faster, shorter, and more readable. "
+            "The function must be named 'sort' and accept a list, returning a sorted list."
+        )
     else:
         templates = load_templates(str(_PROJECT_ROOT / "data/templates"), pattern="matrix_*.py")
         # Human-in-the-loop: allow UI to override base code

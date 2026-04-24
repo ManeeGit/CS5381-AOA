@@ -157,7 +157,7 @@ with st.sidebar:
     st.markdown(f"**Pacman:** {pacman_status}")
 
 # Problem selection
-problem = st.selectbox(" Select Problem", ["pacman", "matrix"])
+problem = st.selectbox(" Select Problem", ["pacman", "matrix", "pseudocode"])
 
 # Display problem description based on selection
 st.markdown("###  Algorithm / Problem Description")
@@ -174,7 +174,7 @@ if problem == "pacman":
     The evolutionary algorithm generates candidate agents through mutations, evaluates each using the UC Berkeley 
     Pacman simulator, and selects the best performers for the next generation.
     """)
-else:
+elif problem == "matrix":
     st.info("""
     **3x3 Matrix Multiplication Optimization**: This problem evolves code for matrix multiplication 
     with two competing objectives:
@@ -186,6 +186,50 @@ else:
     The evolutionary algorithm mutates matrix multiplication implementations to find efficient algorithms 
     that maintain correctness while reducing computational cost.
     """)
+else:  # pseudocode
+    st.info("""
+    **Pseudocode / Algorithm Description** *(Bonus Problem)*: This problem evolves sorting algorithm 
+    implementations with four configurable fitness dimensions:
+    - **Correctness**: Fraction of test cases producing correctly sorted output
+    - **Runtime**: Inverse of average execution time — faster algorithms score higher
+    - **Code Length**: Shorter, concise implementations score higher
+    - **Readability**: Heuristic based on comment density and identifier naming quality
+    
+    **Fitness Function**: F = w₁×correctness + w₂×runtime + w₃×length + w₄×readability  (Σwᵢ = 1)
+    
+    Configure the weights using the sliders below. The seed algorithm is bubble sort — evolve it 
+    toward insertion sort, merge sort, or quicksort!
+    """)
+    st.markdown("#### ⚖️ Configurable Fitness Weights")
+    st.markdown("Adjust weights below. They must sum to **1.0** (auto-normalised).")
+    _pc_col1, _pc_col2, _pc_col3, _pc_col4 = st.columns(4)
+    with _pc_col1:
+        _w_corr = st.slider("Correctness", 0.0, 1.0, 0.4, 0.05, key="w_corr",
+                            help="Weight for fraction of test cases passed.")
+    with _pc_col2:
+        _w_run = st.slider("Runtime", 0.0, 1.0, 0.2, 0.05, key="w_run",
+                           help="Weight for execution speed.")
+    with _pc_col3:
+        _w_len = st.slider("Code Length", 0.0, 1.0, 0.2, 0.05, key="w_len",
+                           help="Weight for code conciseness.")
+    with _pc_col4:
+        _w_read = st.slider("Readability", 0.0, 1.0, 0.2, 0.05, key="w_read",
+                            help="Weight for comment density and naming quality.")
+    _w_total = _w_corr + _w_run + _w_len + _w_read
+    if abs(_w_total - 1.0) > 0.01:
+        # Auto-normalise
+        if _w_total > 0:
+            _w_corr /= _w_total; _w_run /= _w_total; _w_len /= _w_total; _w_read /= _w_total
+        st.warning(f"Weights summed to {_w_total:.2f} — auto-normalised to 1.0")
+    else:
+        st.success(f"✅ Weights sum to {_w_total:.2f}")
+    # Store into config so runner.py picks them up
+    if "pseudocode" not in cfg.raw:
+        cfg.raw["pseudocode"] = {}
+    cfg.raw["pseudocode"]["w_correctness"] = round(_w_corr, 4)
+    cfg.raw["pseudocode"]["w_runtime"] = round(_w_run, 4)
+    cfg.raw["pseudocode"]["w_length"] = round(_w_len, 4)
+    cfg.raw["pseudocode"]["w_readability"] = round(_w_read, 4)
 
 # Show initial code before running
 st.markdown("###  Initial Code")
@@ -193,6 +237,11 @@ if problem == "pacman":
     initial_code = _load_base_code(
         cfg.get("pacman", "base_agent_path"),
         fallback=str(_HERE / "data/templates/pacman_agent_template.py"),
+    )
+elif problem == "pseudocode":
+    initial_code = _load_base_code(
+        str(_HERE / "data/templates/pseudocode_base.py"),
+        fallback=str(_HERE / "data/templates/pseudocode_base.py"),
     )
 else:
     initial_code = _load_base_code(

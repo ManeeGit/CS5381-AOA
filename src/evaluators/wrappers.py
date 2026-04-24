@@ -7,6 +7,7 @@ from typing import Tuple
 
 from .pacman import PacmanEvaluator
 from .matrix import MatrixEvaluator
+from .pseudocode import PseudocodeEvaluator
 
 
 _SAFE_AGENT = (
@@ -50,6 +51,14 @@ class PacmanWrapper:
 @dataclass
 class MatrixWrapper:
     evaluator: MatrixEvaluator
+
+    def evaluate(self, code: str) -> Tuple[float, dict]:
+        return self.evaluator.evaluate(code)
+
+
+@dataclass
+class PseudocodeWrapper:
+    evaluator: PseudocodeEvaluator
 
     def evaluate(self, code: str) -> Tuple[float, dict]:
         return self.evaluator.evaluate(code)
